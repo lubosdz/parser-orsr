@@ -27,19 +27,14 @@ Použitie
 ========
 
 ```
-#!php
-
 // inicializacia API objektu
 $orsr = new ConnectorOrsr_standalone;
-
 ```
 
 Vyhľadávanie:
 ----------------
 
 ```
-#!php
-
 // Vyhľadanie zoznamu subjektov podľa mena:
 $list = $orsr->findByPriezviskoMeno('Novák', 'Alojz');
 $list = $orsr->findByObchodneMeno('Kováč');
@@ -47,21 +42,17 @@ $list = $orsr->findByObchodneMeno('Kováč');
 // vyhladanie detailu subjektu
 $detail = $orsr->findByICO('31411801');
 $detail = $orsr->getDetailById(1319, 9);
-
 ```
 
 Podporné metódy:
 ----------------
 
 ```
-#!php
-
 // zapneme priamy výstup údajov do prehliadača + local file caching
 $orsr->debug = true;
 
 // nastavenie formátu výstupu
 $orsr->setOutputFormat('xml'); // xml|json|empty string
-
 ```
 
 
