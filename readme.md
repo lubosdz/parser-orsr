@@ -11,20 +11,16 @@ Parser obchodného registra SR
 > Autor nezodpovedá za nesprávne použitie kódu.
 
 
-Inštalácia
-==========
+Inštalácia, dependencie, demo
+=============================
 
-Kód je obsiahnutý v jedinom PHP súbore `ConnectorOrsr_standalone.php`.
-
-
-Dependencie
-===========
-
-Potrebné PHP rozšírenia: `tidy`, `mbstring`, `dom`, `iconv`, `json`.
+* Kód je obsiahnutý v jedinom PHP súbore `ConnectorOrsr_standalone.php`.
+* Potrebné PHP rozšírenia: `tidy`, `mbstring`, `dom`, `iconv`, `json`.
+* Demo: [http://www.synet.sk/php/sk/360-ORSR-API-rozhranie-obchodny-register](http://www.synet.sk/php/sk/360-ORSR-API-rozhranie-obchodny-register)
 
 
-Použitie
-========
+Použitie / API
+==============
 
 ```
 // inicializacia API objektu
