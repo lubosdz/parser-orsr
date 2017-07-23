@@ -102,7 +102,7 @@ $detail : Array
 	[vlozka] => 8/N
 	[typ_osoby] => pravnicka
 	[hlavicka] => Spoločnosť zapísaná v obchodnom registri Okresného súdu Nitra, oddiel Sa, vložka 8/N.
-	[hlavicka_kratka] => OÚ Nitra, oddiel Sa, vložka 8/N
+	[hlavicka_kratka] => OS Nitra, oddiel Sa, vložka 8/N
 	[obchodne_meno] => MATADOR Automotive Vráble, a.s.
 	[likvidacia] => nie
 	[adresa] => Array
