@@ -131,8 +131,8 @@ class ConnectorOrsr_standalone
 					case 'hlavicka':
 					case 'hlavicka_kratka':
 						if($data['typ_osoby'] == 'pravnicka'){
-							$orsr = new ConnectorOrsr;
-							$extra = $orsr->findByICO($data['ico']);
+							$orsr = new ConnectorOrsr_standalone;
+							$extra = $orsr->getDetailByICO($data['ico']);
 							if(empty($extra['prislusny_sud'])){
 								$link = current($extra);
 								$extra = $orsr->getDetailByPartialLink($link);
@@ -283,6 +283,10 @@ class ConnectorOrsr_standalone
 		return $data;
 	}
 
+	/**
+	* Return subject details
+	* @param string $meno
+	*/
 	public function findByObchodneMeno($meno){
 
 		$meno = trim($meno);
@@ -308,8 +312,12 @@ class ConnectorOrsr_standalone
 		return $this->handleFindResponse($html);
 	}
 
-
-	public function findByICO($ico, $refreshDays = self::CACHE_DAYS){
+	/**
+	* Return subject details
+	* @param string $ico
+	* @param int $refreshDays After how many days should be record re-fetched from ORSR and updated into local DB
+	*/
+	public function getDetailByICO($ico, $refreshDays = self::CACHE_DAYS){
 
 		$ico = preg_replace('/[^\d]/', '', $ico);
 
@@ -1239,12 +1247,12 @@ $orsr = new ConnectorOrsr_standalone;
 // $orsr->getDetailById(11370, 6); // druzstvo
 //$orsr->getDetailById(60321, 8); // statny podnik
 
-//$orsr->findByICO('31577890');
-//$orsr->findByICO('123');
+//$orsr->getDetailByICO('31577890');
+//$orsr->getDetailByICO('123');
 $data = $orsr->findByPriezviskoMeno('novák', 'peter');
 $data = $orsr->findByObchodneMeno('Matador');
 
-$data = $orsr->findByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
+$data = $orsr->getDetailByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
 echo "<pre>".print_r($data, 1)."</pre>";
 
 $data = $orsr->getDetailById(1319, 9); // statny podnik

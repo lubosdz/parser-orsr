@@ -50,7 +50,7 @@ $list = $orsr->findByPriezviskoMeno('Novák', 'Peter');
 $list = $orsr->findByObchodneMeno('Matador');
 
 // vyhladanie detailu subjektu
-$detail = $orsr->findByICO('31411801');
+$detail = $orsr->getDetailByICO('31411801');
 $detail = $orsr->getDetailById(1319, 9);
 ```
 
