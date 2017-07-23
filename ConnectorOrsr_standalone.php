@@ -392,7 +392,7 @@ class ConnectorOrsr_standalone
 		$out = [];
 		if ($rows->length) {
 			foreach ($rows as $row) {
-				if($formater && method_exists('ConnectorOrsr', $formater)){
+				if($formater && method_exists($this, $formater)){
 					$out += self::{$formater}($row, $xpath);
 				}else{
 					$label = trim(str_replace('"', '', $row->nodeValue)); // niektore firmy maju zahunute uvodzovky v nazve spolocnosti
@@ -1241,8 +1241,8 @@ $orsr = new ConnectorOrsr_standalone;
 
 //$orsr->findByICO('31577890');
 //$orsr->findByICO('123');
-//$orsr->findByPriezviskoMeno('Novák', 'Alojz');
-//$orsr->findByObchodneMeno('Kováč');
+$data = $orsr->findByPriezviskoMeno('novák', 'peter');
+$data = $orsr->findByObchodneMeno('Matador');
 
 $data = $orsr->findByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
 echo "<pre>".print_r($data, 1)."</pre>";
