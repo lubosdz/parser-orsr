@@ -45,13 +45,13 @@ Vyhľadávanie:
 ----------------
 
 ```
-// Vyhľadanie zoznamu subjektov podľa mena:
+// vyhľadanie zoznamu subjektov podľa mena/názvu:
 $list = $orsr->findByPriezviskoMeno('Novák', 'Peter');
-$list = $orsr->findByObchodneMeno('Matador');
+$list = $orsr->findByObchodneMeno('Matador'); // e.g. vypis.asp?ID=1319&SID=9&P=0
 
-// vyhladanie detailu subjektu
-$detail = $orsr->getDetailByICO('31411801');
+// vyhľadanie detailu subjektu podľa ID/IČO:
 $detail = $orsr->getDetailById(1319, 9);
+$detail = $orsr->getDetailByICO('31411801');
 ```
 
 Podporné metódy:

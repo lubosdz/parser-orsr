@@ -603,18 +603,18 @@ class ConnectorOrsr_standalone
 		if(preg_match('/(firm)/i', $typ)){
 			$out['typ_osoby'] = self::TYP_OSOBY_FYZICKA;
 			$out['hlavicka'] = 'Fyzická osoba zapísaná v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'].'.';
-			$out['hlavicka_kratka'] = 'OÚ '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
+			$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
 		}else{
 			$out['typ_osoby'] = self::TYP_OSOBY_PRAVNICKA;
 			if(preg_match('/(dr)/', $typ)){
 				$out['hlavicka'] = 'Družstvo zapísané v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OÚ '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
+				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
 			}elseif(preg_match('/(psn)/', $typ)){
 				$out['hlavicka'] = 'Podnik zapísaný v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OÚ '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
+				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
 			}else{
 				$out['hlavicka'] = 'Spoločnosť zapísaná v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OÚ '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
+				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 			}
 		}
 
