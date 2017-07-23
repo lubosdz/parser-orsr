@@ -3,7 +3,6 @@
 /**
 * Parser pre vypis z obchodneho registra SR
 * (c) 2015 - 2017 lubosdz
-*
 * ------------------------------------------------------------------
 * Disclaimer / Prehlásenie:
 * Kód poskytnutý je bez záruky a môže kedykoľvek prestať fungovať.
@@ -11,6 +10,10 @@
 * Autor nie je povinný udržiavať kód aktuálny a funkčný, ani neposkytuje ku nemu žiadnu podporu.
 * Kód bol sprístupnený na základe mnohých žiadostí vývojárov finančno-ekonomických aplikácií a (bohužiaľ) neschopnosti
 * úradných inštitúcií sprístupniť oficiálny prístup do verejnej databázy subjektov pomocou štandardného API rozhrania.
+* Autor nezodpovedá za nesprávne použitie kódu.
+* ------------------------------------------------------------------
+* Source:
+* https://github.com/lubosdz/parser-orsr
 * ------------------------------------------------------------------
 */
 
