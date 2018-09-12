@@ -15,33 +15,33 @@
 * https://github.com/lubosdz/parser-orsr
 * ------------------------------------------------------------------
 * Usage examples:
-
-// init object
-$orsr = new ConnectorOrsr();
-// turn on debug mode (= save output to local file to reduce requests)
-$orsr->debug = true;
-$orsr->setOutputFormat('xml'); xml|json|empty string
-
-// make requests
-$orsr->getDetailById(1366, 9); // a.s. - Agrostav
-$orsr->getDetailById(19691, 2); // a.s. - Kerametal
-$orsr->getDetailById(11095, 2); // s.r.o. - Elet
-$orsr->getDetailById(11075, 5); // Firma / SZCO
-$orsr->getDetailById(5721, 6); // v.o.s.
-$orsr->getDetailById(11370, 6); // druzstvo
-$orsr->getDetailById(60321, 8); // statny podnik
-
-$orsr->getDetailByICO('31577890');
-$orsr->getDetailByICO('123');
-
-$data = $orsr->findByPriezviskoMeno('novák', 'peter');
-$data = $orsr->findByObchodneMeno('Matador');
-
-$data = $orsr->getDetailByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
-echo "<pre>".print_r($data, 1)."</pre>";
-
-$data = $orsr->getDetailById(1319, 9); // statny podnik
-echo "<pre>".print_r($data, 1)."</pre>";
+*
+* // init object
+* $orsr = new ConnectorOrsr();
+* // turn on debug mode (= save output to local file to reduce requests)
+* $orsr->debug = true;
+* $orsr->setOutputFormat('xml'); xml|json|empty string
+*
+* // make requests
+* $orsr->getDetailById(1366, 9); // a.s. - Agrostav
+* $orsr->getDetailById(19691, 2); // a.s. - Kerametal
+* $orsr->getDetailById(11095, 2); // s.r.o. - Elet
+* $orsr->getDetailById(11075, 5); // Firma / SZCO
+* $orsr->getDetailById(5721, 6); // v.o.s.
+* $orsr->getDetailById(11370, 6); // druzstvo
+* $orsr->getDetailById(60321, 8); // statny podnik
+*
+* $orsr->getDetailByICO('31577890');
+* $orsr->getDetailByICO('123');
+*
+* $data = $orsr->findByPriezviskoMeno('novák', 'peter');
+* $data = $orsr->findByObchodneMeno('Matador');
+*
+* $data = $orsr->getDetailByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
+* echo "<pre>".print_r($data, 1)."</pre>";
+*
+* $data = $orsr->getDetailById(1319, 9); // statny podnik
+* echo "<pre>".print_r($data, 1)."</pre>";
 */
 
 namespace lubosdz\parserOrsr;
