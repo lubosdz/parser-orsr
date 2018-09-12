@@ -1,0 +1,21 @@
+{
+	"name": "lubosdz/parser-orsr",
+	"description": "Parser obchodneho registra - orsr.sk. (Parser for Slovak business register)",
+	"license": "BSD-3-Clause",
+	"keywords": ["orsr", "obchodny register", "slovak business register", "parser", "XML DOM parser"],
+	"support": {
+		"source": "https://github.com/lubosdz/parser-orsr",
+		"issues": "https://github.com/lubosdz/parser-orsr/issues"
+	},
+	"authors": [
+		{
+			"name": "lubosdz"
+		}
+	],
+	"require": {
+		"php": ">=5.5"
+	},
+	"autoload": {
+		"psr-4": {"lubosdz\\parserOrsr\\": ""}
+	}
+}

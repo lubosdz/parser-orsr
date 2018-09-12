@@ -14,7 +14,7 @@ Parser obchodného registra SR
 Licencia
 ========
 
-Kód obsiahnutý v súbore `ConnectorOrsr_standalone.php` je voľne distribuovateľný a modifikovateľný na súkromné ako aj komerčné účely.
+Kód obsiahnutý v súbore `ConnectorOrsr.php` je voľne distribuovateľný a modifikovateľný na súkromné ako aj komerčné účely.
 
 
 Tipy na správne použitie
@@ -28,17 +28,21 @@ Tipy na správne použitie
 Inštalácia, dependencie, demo
 =============================
 
-* Kód je obsiahnutý v jedinom PHP súbore `ConnectorOrsr_standalone.php`.
+* Kód je obsiahnutý v jedinom PHP súbore `ConnectorOrsr.php`.
 * Potrebné PHP rozšírenia: `tidy`, `mbstring`, `dom`, `iconv`, `json`.
 * Demo: [http://www.synet.sk/php/sk/360-ORSR-API-rozhranie-obchodny-register](http://www.synet.sk/php/sk/360-ORSR-API-rozhranie-obchodny-register)
+* install manually or via composer:
 
+```bash
+$ composer require "lubosdz/parser-orsr" : "~1.0.0"
+```
 
-Použitie / API
-==============
+Použitie / API / Usage
+======================
 
 ```
 // inicializacia API objektu
-$orsr = new ConnectorOrsr_standalone;
+$orsr = new \lubosdz\parserOrsr\ConnectorOrsr();
 ```
 
 Vyhľadávanie:

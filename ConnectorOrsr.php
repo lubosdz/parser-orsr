@@ -1,5 +1,4 @@
 <?php
-
 /**
 * Parser pre vypis z obchodneho registra SR
 * (c) 2015 - 2017 lubosdz
@@ -15,18 +14,48 @@
 * Source:
 * https://github.com/lubosdz/parser-orsr
 * ------------------------------------------------------------------
+* Usage examples:
+
+// init object
+$orsr = new ConnectorOrsr();
+// turn on debug mode (= save output to local file to reduce requests)
+$orsr->debug = true;
+$orsr->setOutputFormat('xml'); xml|json|empty string
+
+// make requests
+$orsr->getDetailById(1366, 9); // a.s. - Agrostav
+$orsr->getDetailById(19691, 2); // a.s. - Kerametal
+$orsr->getDetailById(11095, 2); // s.r.o. - Elet
+$orsr->getDetailById(11075, 5); // Firma / SZCO
+$orsr->getDetailById(5721, 6); // v.o.s.
+$orsr->getDetailById(11370, 6); // druzstvo
+$orsr->getDetailById(60321, 8); // statny podnik
+
+$orsr->getDetailByICO('31577890');
+$orsr->getDetailByICO('123');
+
+$data = $orsr->findByPriezviskoMeno('novák', 'peter');
+$data = $orsr->findByObchodneMeno('Matador');
+
+$data = $orsr->getDetailByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
+echo "<pre>".print_r($data, 1)."</pre>";
+
+$data = $orsr->getDetailById(1319, 9); // statny podnik
+echo "<pre>".print_r($data, 1)."</pre>";
 */
 
-class ConnectorOrsr_standalone
+namespace lubosdz\parserOrsr;
+
+/**
+* Slovak Business register DOM XML parser
+*/
+class ConnectorOrsr
 {
 	const TYP_OSOBY_PRAVNICKA = 'pravnicka';
 	const TYP_OSOBY_FYZICKA = 'fyzicka';
 
 	const CALLER_ORSR = 'orsr';
 	const API_VERSION = '1.1.0';
-
-	// days to live - after how many days should record from ORSR be automatically re-fetched
-	const CACHE_DAYS = 180;
 
 	// set caller class alias
 	protected $caller = self::CALLER_ORSR;
@@ -39,9 +68,6 @@ class ConnectorOrsr_standalone
 
 	// stores some data into local files to avoid multiple requests during development
 	public $debug = false;
-
-	// enable local DB cache
-	public $cacheEnabled = false;
 
 	// extracted data
 	protected $data = [];
@@ -83,18 +109,18 @@ class ConnectorOrsr_standalone
 	public function normalizeData(array $data, array $force = []){
 
 		$out = [
-			'ico' => empty($data['ico']) ? '' : $data['ico'], // 32631413
+			'ico' => empty($data['ico']) ? '' : $data['ico'], // e.g. 32631413
 			'obchodne_meno' => empty($data['obchodne_meno']) ? '' : $data['obchodne_meno'],
 			'street' => '',
 			'number' => '',
 			'city' => '',
-			'zip' => '', // 90101
+			'zip' => '', // e.g. 90101
 			'typ_osoby' => empty($data['typ_osoby']) ? '' : $data['typ_osoby'], // fyzicka - pravnicka
 			'hlavicka' => empty($data['hlavicka']) ? '' : $data['hlavicka'], // Fyzicka osoba zapisana v OU Nitra vlozka 1234/B.
 			'hlavicka_kratka' => empty($data['hlavicka_kratka']) ? '' : $data['hlavicka_kratka'], // OU Nitra, vlozka 1234/B
-			'dic' => empty($data['dic']) ? '' : $data['dic'], // 1020218914
-			'nace_kod' => empty($data['nace_kod']) ? '' : $data['nace_kod'], // 41209
-			'nace_text' => empty($data['nace_text']) ? '' : $data['nace_text'], // Počítačové služby a poradenstvo
+			'dic' => empty($data['dic']) ? '' : $data['dic'], // e.g. 1020218914
+			'nace_kod' => empty($data['nace_kod']) ? '' : $data['nace_kod'], // e.g. 41209
+			'nace_text' => empty($data['nace_text']) ? '' : $data['nace_text'], // e.g. Počítačové služby a poradenstvo
 		];
 
 		if(!empty($data['adresa']['street'])){
@@ -206,9 +232,8 @@ class ConnectorOrsr_standalone
 	* @param int $id Company database identifier, e.g. 19456
 	* @param int $sid Sud ID 0 - 8
 	* @param int $p 0|1 vypis 1 - uplny, otherwise 0 = aktualny
-	* @param int $refreshDays After how many days should be record re-fetched from ORSR and updated into local DB
 	*/
-	public function getDetailById($id, $sid, $p=0, $refreshDays = self::CACHE_DAYS){
+	public function getDetailById($id, $sid, $p=0){
 
 		$id = intval($id);
 		if($id < 1){
@@ -262,7 +287,7 @@ class ConnectorOrsr_standalone
 	* Fetch company page from ORSR and return parsed data
 	* @param string $link Partial link to fetch, e.g. vypis.asp?ID=54190&SID=7&P=0
 	*/
-	public function getDetailByPartialLink($link, $refreshDays = self::CACHE_DAYS){
+	public function getDetailByPartialLink($link){
 
 		$data = [];
 
@@ -275,9 +300,8 @@ class ConnectorOrsr_standalone
 			parse_str($link, $params);
 
 			if(isset($params['ID'], $params['SID'], $params['P'])){
-				$data = $this->getDetailById($params['ID'], $params['SID'], $params['P'], $refreshDays);
+				$data = $this->getDetailById($params['ID'], $params['SID'], $params['P']);
 			}
-
 		}
 
 		return $data;
@@ -315,9 +339,8 @@ class ConnectorOrsr_standalone
 	/**
 	* Return subject details
 	* @param string $ico
-	* @param int $refreshDays After how many days should be record re-fetched from ORSR and updated into local DB
 	*/
-	public function getDetailByICO($ico, $refreshDays = self::CACHE_DAYS){
+	public function getDetailByICO($ico){
 
 		$ico = preg_replace('/[^\d]/', '', $ico);
 
@@ -343,6 +366,11 @@ class ConnectorOrsr_standalone
 		return $this->handleFindResponse($html);
 	}
 
+	/**
+	* Search by surname and/or name
+	* @param string $priezvisko
+	* @param string $meno
+	*/
 	public function findByPriezviskoMeno($priezvisko, $meno = ''){
 
 		$priezvisko = trim($priezvisko);
@@ -421,6 +449,11 @@ class ConnectorOrsr_standalone
 		}
 	}
 
+	/**
+	* Partial XML node formatter
+	* @param mixed $row
+	* @param mixed $xpath
+	*/
 	protected static function formaterMenoPriezvisko($row, $xpath){
 		$label1 = trim($row->nodeValue);
 		$label2 = $xpath->query(".//../td[3]", $row);
@@ -1228,32 +1261,4 @@ class _Array2XML {
 
 }
 
-
 #######################################################
-
-$orsr = new ConnectorOrsr_standalone;
-
-// turn on local caching & direct buffer output
-// local caching = no real cache directory, just into root to reduce extern requests
-// $orsr->debug = true;
-// $orsr->setOutputFormat('xml'); // xml|json|empty string
-
-//$orsr->getDetailById(1366, 9); // a.s. - Agrostav
-//$orsr->getDetailById(19691, 2); // a.s. - Kerametal
-
-//$orsr->getDetailById(11095, 2); // s.r.o. - Elet
-//$orsr->getDetailById(11075, 5); // Firm / SZCO
-//$orsr->getDetailById(5721, 6); // v.o.s.
-// $orsr->getDetailById(11370, 6); // druzstvo
-//$orsr->getDetailById(60321, 8); // statny podnik
-
-//$orsr->getDetailByICO('31577890');
-//$orsr->getDetailByICO('123');
-$data = $orsr->findByPriezviskoMeno('novák', 'peter');
-$data = $orsr->findByObchodneMeno('Matador');
-
-$data = $orsr->getDetailByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
-echo "<pre>".print_r($data, 1)."</pre>";
-
-$data = $orsr->getDetailById(1319, 9); // statny podnik
-echo "<pre>".print_r($data, 1)."</pre>";
