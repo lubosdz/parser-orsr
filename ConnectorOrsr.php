@@ -17,9 +17,11 @@
 * Usage examples:
 *
 * // init object
-* $orsr = new ConnectorOrsr();
-* // turn on debug mode (= save output to local file to reduce requests)
+* $orsr = new \lubosdz\parserOrsr\ConnectorOrsr();
+*
+* // turn on debug mode (means save output to a local file to reduce requests)
 * $orsr->debug = true;
+* $orsr->dirCache = "/app/writable/cache/";
 * $orsr->setOutputFormat('xml'); xml|json|empty string
 *
 * // make requests
@@ -51,11 +53,17 @@ namespace lubosdz\parserOrsr;
 */
 class ConnectorOrsr
 {
+	const CALLER_ORSR = 'orsr';
+	const API_VERSION = '1.2.0';
+
 	const TYP_OSOBY_PRAVNICKA = 'pravnicka';
 	const TYP_OSOBY_FYZICKA = 'fyzicka';
 
-	const CALLER_ORSR = 'orsr';
-	const API_VERSION = '1.1.0';
+	// stores some data into local files to avoid multiple requests during development
+	public $debug = false;
+
+	// path to cache directory in debug mode (add trailing slash)
+	public $dirCache;
 
 	// set caller class alias
 	protected $caller = self::CALLER_ORSR;
@@ -65,9 +73,6 @@ class ConnectorOrsr
 
 	// output format JSON|XML|RAW
 	protected $format = '';
-
-	// stores some data into local files to avoid multiple requests during development
-	public $debug = false;
 
 	// extracted data
 	protected $data = [];
@@ -96,7 +101,7 @@ class ConnectorOrsr
 		if(in_array($format, ['json', 'xml', ''])){
 			$this->format = $format;
 		}else{
-			throw new Exception('Output format ['.$format.'] not supported.');
+			throw new \Exception('Output format ['.$format.'] not supported.');
 		}
 		return $this;
 	}
@@ -157,7 +162,7 @@ class ConnectorOrsr
 					case 'hlavicka':
 					case 'hlavicka_kratka':
 						if($data['typ_osoby'] == 'pravnicka'){
-							$orsr = new ConnectorOrsr_standalone;
+							$orsr = new ConnectorOrsr();
 							$extra = $orsr->getDetailByICO($data['ico']);
 							if(empty($extra['prislusny_sud'])){
 								$link = current($extra);
@@ -230,8 +235,8 @@ class ConnectorOrsr
 	/**
 	* Fetch company page from ORSR and return parsed data
 	* @param int $id Company database identifier, e.g. 19456
-	* @param int $sid Sud ID 0 - 8
-	* @param int $p 0|1 vypis 1 - uplny, otherwise 0 = aktualny
+	* @param int $sid ID 0 - 8, prislusny sud/judikatura (jurisdiction district ID)
+	* @param int $p 0|1 Typ vypisu, default 0 = aktualny, 1 - uplny (vratane historickych zrusenych zaznamov)
 	*/
 	public function getDetailById($id, $sid, $p=0){
 
@@ -241,7 +246,7 @@ class ConnectorOrsr
 		}
 
 		$hash = $id.'-'.$sid.'-'.$p;
-		$path = 'orsr-detail-'.$hash.'-raw.html';
+		$path = $this->dirCache.'orsr-detail-'.$hash.'-raw.html';
 
 		if($this->debug && is_file($path) && filesize($path)){
 			$html = file_get_contents($path);
@@ -251,7 +256,7 @@ class ConnectorOrsr
 			// P = 1 - uplny, otherwise 0 = aktualny
 			$url = "http://www.orsr.sk/vypis.asp?ID={$id}&SID={$sid}&P={$p}";
 			$html = file_get_contents($url);
-			if($this->debug){
+			if($html && $this->debug){
 				file_put_contents($path, $html);
 			}
 		}
@@ -260,7 +265,7 @@ class ConnectorOrsr
 		if($html){
 			$data = self::extractDetail($html);
 		}else{
-			throw new Exception('Failed loading data.');
+			throw new \Exception('Failed loading data.');
 		}
 
 		if($this->debug){
@@ -288,14 +293,12 @@ class ConnectorOrsr
 	* @param string $link Partial link to fetch, e.g. vypis.asp?ID=54190&SID=7&P=0
 	*/
 	public function getDetailByPartialLink($link){
-
 		$data = [];
 
 		if(false !== strpos($link, 'vypis.asp?')){
 			// ID + SID = jedinecny identifikator subjektu
 			// SID (ID sudu dla kraja) = 1 .. 8 different companies :-(
 			// P = 1 - uplny, 0 - aktualny
-
 			list(, $link) = explode('asp?', $link);
 			parse_str($link, $params);
 
@@ -317,7 +320,8 @@ class ConnectorOrsr
 		$meno = iconv('utf-8', 'windows-1250', $meno);
 		$meno = urlencode($meno);
 
-		$path = 'orsr-search-obmeno-'.$meno.'.html';
+		$path = $this->dirCache.'orsr-search-obmeno-'.$meno.'.html';
+
 		if($this->debug && is_file($path) && filesize($path)){
 			$html = file_get_contents($path);
 		}else{
@@ -326,10 +330,8 @@ class ConnectorOrsr
 			// PF=0 .. pravna forma (0 = any)
 			$url = "http://www.orsr.sk/hladaj_subjekt.asp?OBMENO={$meno}&PF=0&R=on";
 			$html = file_get_contents($url);
-			if($html){
-				if($this->debug){
-					file_put_contents($path, $html);
-				}
+			if($html && $this->debug){
+				file_put_contents($path, $html);
 			}
 		}
 
@@ -343,12 +345,12 @@ class ConnectorOrsr
 	public function getDetailByICO($ico){
 
 		$ico = preg_replace('/[^\d]/', '', $ico);
-
 		if(strlen($ico) != 8){
 			return [];
 		}
 
-		$path = 'orsr-search-ico-'.$ico.'.html';
+		$path = $this->dirCache.'orsr-search-ico-'.$ico.'.html';
+
 		if($this->debug && is_file($path) && filesize($path)){
 			$html = file_get_contents($path);
 		}
@@ -381,7 +383,8 @@ class ConnectorOrsr
 		$meno = iconv('utf-8', 'windows-1250', $meno);
 		$meno = urlencode($meno);
 
-		$path = 'orsr-search-priezvisko-meno-'.$priezvisko.'-'.$meno.'.html';
+		$path = $this->dirCache.'orsr-search-priezvisko-meno-'.$priezvisko.'-'.$meno.'.html';
+
 		if($this->debug && is_file($path) && filesize($path)){
 			$html = file_get_contents($path);
 		}else{
@@ -393,7 +396,7 @@ class ConnectorOrsr
 			// SID=0 .. sud ID (0 = any)
 			$url = "http://www.orsr.sk/hladaj_osoba.asp?PR={$priezvisko}&MENO={$meno}&SID=0&T=f0&R=on";
 			$html = file_get_contents($url);
-			if($this->debug){
+			if($html && $this->debug){
 				file_put_contents($path, $html);
 			}
 		}
@@ -411,16 +414,16 @@ class ConnectorOrsr
 		$html = str_replace('windows-1250', 'utf-8', $html);
 
 		// ensure valid XHTML markup
-		$tidy = new tidy();
+		$tidy = new \tidy();
 		$html = $tidy->repairString($html, array(
 			'output-xhtml' => true,
 			//'show-body-only' => true, // we MUST have HEAD with charset!!!
 		), 'utf8');
 
 		// load XHTML into DOM document
-		$xml = new DOMDocument('1.0', 'utf-8');
+		$xml = new \DOMDocument('1.0', 'utf-8');
 		$xml->loadHTML($html);
-		$xpath = new DOMXpath($xml);
+		$xpath = new \DOMXpath($xml);
 
 		$rows = $xpath->query("/html/body/table[3]/tr/td[2]"); // all tables /html/body/table
 
@@ -511,7 +514,7 @@ class ConnectorOrsr
 		$html = str_replace('windows-1250', 'utf-8', $html);
 
 		// ensure valid XHTML markup
-		$tidy = new tidy();
+		$tidy = new \tidy();
 		$html = $tidy->repairString($html, array(
 			'output-xhtml' => true,
 			//'show-body-only' => true, // we MUST have HEAD with charset!!!
@@ -525,9 +528,9 @@ class ConnectorOrsr
 		$html = preg_replace('/\s+/', ' ', $html);
 
 		// load XHTML into DOM document
-		$xml = new DOMDocument('1.0', 'utf-8');
+		$xml = new \DOMDocument('1.0', 'utf-8');
 		$xml->loadHTML($html);
-		$xpath = new DOMXpath($xml);
+		$xpath = new \DOMXpath($xml);
 
 		$elements = $xpath->query("/html/body/*"); // all tables /html/body/table
 
@@ -1142,7 +1145,7 @@ class _Array2XML {
 	 * @param $format_output
 	 */
 	public static function init($version = '1.0', $encoding = 'UTF-8', $format_output = true) {
-		self::$xml = new DomDocument($version, $encoding);
+		self::$xml = new \DomDocument($version, $encoding);
 		self::$xml->formatOutput = $format_output;
 		self::$encoding = $encoding;
 	}
@@ -1177,7 +1180,7 @@ class _Array2XML {
 			if(isset($arr['@attributes'])) {
 				foreach($arr['@attributes'] as $key => $value) {
 					if(!self::isValidTagName($key)) {
-						throw new Exception('[_Array2XML] Illegal character in attribute name. attribute: '.$key.' in node: '.$node_name);
+						throw new \Exception('[_Array2XML] Illegal character in attribute name. attribute: '.$key.' in node: '.$node_name);
 					}
 					$node->setAttribute($key, self::bool2str($value));
 				}
@@ -1204,7 +1207,7 @@ class _Array2XML {
 			// recurse to get the node for that key
 			foreach($arr as $key=>$value){
 				if(!self::isValidTagName($key)) {
-					throw new Exception('[_Array2XML] Illegal character in tag name. tag: '.$key.' in node: '.$node_name);
+					throw new \Exception('[_Array2XML] Illegal character in tag name. tag: '.$key.' in node: '.$node_name);
 				}
 				if(is_array($value) && is_numeric(key($value))) {
 					// MORE THAN ONE NODE OF ITS KIND;

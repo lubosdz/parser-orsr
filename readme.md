@@ -22,7 +22,7 @@ Tipy na správne použitie
 
 * nepreťažujte server obchodného  registra ORSR - nie je známe, akú záťaž dokáže server zvládnuť. Preťažením servera znemožníte využitie služby sebe aj iným. Buďte etickí programátori.
 * neoporúčame posielať požiadavky na server častejšie ako 1x za minútu. V žiadnom prípade nerobte hromadné odoslanie požiadaviek napr. 10 požiadaviek za sekundu - nerobia to ani webboty, lebo vedia, že môžu odpáliť server a dostať IP ban.
-* cachujte odpovede zo servera ORSR tak, aby sa rovnaký request neopakoval aspoň 3 - 6 mesiacov. Údaje v registri sa menia veľmi zriedkavo.
+* cachujte odpovede (do databázy) zo servera ORSR tak, aby sa rovnaký request neopakoval aspoň 3 - 6 mesiacov. Údaje v Obchodnom registri sa menia veľmi zriedkavo. Cachovanie nie je súčasťou implementácie (ukladanie odpovedí do lokálneho súboru v debug móde nepovažujeme za cachovanie).
 
 
 Inštalácia, dependencie, demo
