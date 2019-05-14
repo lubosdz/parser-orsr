@@ -274,4 +274,9 @@ $detail : Array
 )
 ```
 
---------------------------------------------------
+Changelog
+---------
+
+* 1.0.2 - [14.05.2019] fixed PCRE unicode handling in different environments
+* 1.0.1 - [11.03.2019] fixed bug PHP7+ compatability
+* 1.0.0 - [12.09.2018] initial release

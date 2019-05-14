@@ -1,7 +1,8 @@
 <?php
 /**
 * Parser pre vypis z obchodneho registra SR
-* (c) 2015 - 2017 lubosdz
+* Version 1.0.2 (released 14.05.2019)
+* (c) 2015 - 2019 lubosdz@gmail.com
 * ------------------------------------------------------------------
 * Disclaimer / Prehlásenie:
 * Kód poskytnutý je bez záruky a môže kedykoľvek prestať fungovať.
@@ -49,7 +50,7 @@
 namespace lubosdz\parserOrsr;
 
 /**
-* Slovak Business register DOM XML parser
+* Slovak Business Register DOM XML parser
 */
 class ConnectorOrsr
 {
@@ -58,6 +59,9 @@ class ConnectorOrsr
 
 	const TYP_OSOBY_PRAVNICKA = 'pravnicka';
 	const TYP_OSOBY_FYZICKA = 'fyzicka';
+
+	// by extracting target URL it's easier to update if they switch to secure URL or remove www prefix etc.
+	const URL_BASE = 'http://www.orsr.sk';
 
 	// stores some data into local files to avoid multiple requests during development
 	public $debug = false;
@@ -254,7 +258,7 @@ class ConnectorOrsr
 			// ID + SID = jedinecny identifikator subjektu
 			// SID (ID sudu dla kraja) = 1 .. 8 different companies :-(
 			// P = 1 - uplny, otherwise 0 = aktualny
-			$url = "http://www.orsr.sk/vypis.asp?ID={$id}&SID={$sid}&P={$p}";
+			$url = self::URL_BASE."/vypis.asp?ID={$id}&SID={$sid}&P={$p}";
 			$html = file_get_contents($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
@@ -328,7 +332,7 @@ class ConnectorOrsr
 			// http://www.orsr.sk/hladaj_subjekt.asp?OBMENO=sumia&PF=0&R=on
 			// R=on ... only aktualne zaznamy, otherwise hladaj aj v historickych zaznamoch
 			// PF=0 .. pravna forma (0 = any)
-			$url = "http://www.orsr.sk/hladaj_subjekt.asp?OBMENO={$meno}&PF=0&R=on";
+			$url = self::URL_BASE."/hladaj_subjekt.asp?OBMENO={$meno}&PF=0&R=on";
 			$html = file_get_contents($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
@@ -358,7 +362,7 @@ class ConnectorOrsr
 		// http://www.orsr.sk/hladaj_ico.asp?ICO=123&SID=0
 		// SID=0 .. sud ID (0 = any)
 		if(empty($html)){
-			$url = "http://www.orsr.sk/hladaj_ico.asp?ICO={$ico}&SID=0";
+			$url = self::URL_BASE."/hladaj_ico.asp?ICO={$ico}&SID=0";
 			$html = file_get_contents($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
@@ -394,7 +398,7 @@ class ConnectorOrsr
 			// R=on ... only aktualne zaznamy, otherwise hladaj aj v historickych zaznamoch
 			// PF=0 .. pravna forma (0 = any)
 			// SID=0 .. sud ID (0 = any)
-			$url = "http://www.orsr.sk/hladaj_osoba.asp?PR={$priezvisko}&MENO={$meno}&SID=0&T=f0&R=on";
+			$url = self::URL_BASE."/hladaj_osoba.asp?PR={$priezvisko}&MENO={$meno}&SID=0&T=f0&R=on";
 			$html = file_get_contents($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
