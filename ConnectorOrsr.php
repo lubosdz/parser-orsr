@@ -525,7 +525,7 @@ class ConnectorOrsr
 			'&nbsp;' => ' ',
 		]);
 
-		$html = preg_replace('/\s+/', ' ', $html);
+		$html = preg_replace('/\s+/u', ' ', $html);
 
 		// load XHTML into DOM document
 		$xml = new \DOMDocument('1.0', 'utf-8');
@@ -554,7 +554,7 @@ class ConnectorOrsr
 						if($firstCol->length){
 							$firstCol = $firstCol->item(0)->nodeValue;
 							if($firstCol){
-								$firstCol = preg_replace('/\s+/', ' ', $firstCol);
+								$firstCol = preg_replace('/\s+/u', ' ', $firstCol);
 								foreach($tags as $tag => $callback){
 									if(false !== mb_stripos($firstCol, $tag, 0, 'utf-8')){
 										$secondCol = $xpath->query(".//td[2]", $node);
@@ -703,7 +703,7 @@ class ConnectorOrsr
 
 	protected function extract_ico($tag, $node, $xpath){
 		$out = self::getFirstTableFirstCell($node, $xpath);
-		$out = preg_replace('/\s+/', '', $out);
+		$out = preg_replace('/\s+/u', '', $out);
 		return ['ico' => $out];
 	}
 
@@ -1088,7 +1088,7 @@ class ConnectorOrsr
 		];
 		if(preg_match('/([^\d]+)( [\d ]+)/', $city, $match)){
 			$out['city'] = trim($match[1]);
-			$out['zip'] = preg_replace('/\s/','', $match[2]); // remove inline whitespaces
+			$out['zip'] = preg_replace('/\s/u','', $match[2]); // remove inline whitespaces
 		}
 		return $out;
 	}
