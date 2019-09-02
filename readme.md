@@ -46,16 +46,17 @@ $orsr = new \lubosdz\parserOrsr\ConnectorOrsr();
 ```
 
 Vyhľadávanie:
-----------------
+--------------
 
 ```
 // vyhľadanie zoznamu subjektov podľa mena/názvu:
 $list = $orsr->findByPriezviskoMeno('Novák', 'Peter');
 $list = $orsr->findByObchodneMeno('Matador'); // e.g. vypis.asp?ID=1319&SID=9&P=0
+$list = $orsr->findByICO('31577890'); // always max. 1 item - array(subject_name => link)
 
 // vyhľadanie detailu subjektu podľa ID/IČO:
-$detail = $orsr->getDetailById(1319, 9);
-$detail = $orsr->getDetailByICO('31411801');
+$detail = $orsr->getDetailById(1319, 9); // from link "vypis.asp?ID=1319&SID=9"
+$detail = $orsr->getDetailByICO('31577890');
 ```
 
 Podporné metódy:

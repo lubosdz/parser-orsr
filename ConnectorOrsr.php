@@ -1,8 +1,11 @@
 <?php
 /**
 * Parser pre vypis z obchodneho registra SR
-* Version 1.0.2 (released 14.05.2019)
+* Lookup service for Slovak commercial register (www.orsr.sk)
+*
+* Version 1.0.3 (released 02.09.2019)
 * (c) 2015 - 2019 lubosdz@gmail.com
+*
 * ------------------------------------------------------------------
 * Disclaimer / Prehlásenie:
 * Kód poskytnutý je bez záruky a môže kedykoľvek prestať fungovať.
@@ -12,9 +15,11 @@
 * úradných inštitúcií sprístupniť oficiálny prístup do verejnej databázy subjektov pomocou štandardného API rozhrania.
 * Autor nezodpovedá za nesprávne použitie kódu.
 * ------------------------------------------------------------------
+*
 * Source:
 * https://github.com/lubosdz/parser-orsr
 * ------------------------------------------------------------------
+*
 * Usage examples:
 *
 * // init object
@@ -39,6 +44,7 @@
 *
 * $data = $orsr->findByPriezviskoMeno('novák', 'peter');
 * $data = $orsr->findByObchodneMeno('Matador');
+* $data = $orsr->findByICO('31411801');
 *
 * $data = $orsr->getDetailByICO('31411801'); // [MATADOR Automotive Vráble, a.s.] => vypis.asp?ID=1319&SID=9&P=0
 * echo "<pre>".print_r($data, 1)."</pre>";
@@ -54,14 +60,13 @@ namespace lubosdz\parserOrsr;
 */
 class ConnectorOrsr
 {
-	const CALLER_ORSR = 'orsr';
-	const API_VERSION = '1.2.0';
-
-	const TYP_OSOBY_PRAVNICKA = 'pravnicka';
-	const TYP_OSOBY_FYZICKA = 'fyzicka';
+	const API_VERSION = '1.0.3';
 
 	// by extracting target URL it's easier to update if they switch to secure URL or remove www prefix etc.
 	const URL_BASE = 'http://www.orsr.sk';
+
+	const TYP_OSOBY_PRAVNICKA = 'pravnicka';
+	const TYP_OSOBY_FYZICKA = 'fyzicka';
 
 	// stores some data into local files to avoid multiple requests during development
 	public $debug = false;
@@ -69,14 +74,11 @@ class ConnectorOrsr
 	// path to cache directory in debug mode (add trailing slash)
 	public $dirCache;
 
-	// set caller class alias
-	protected $caller = self::CALLER_ORSR;
-
-	// rendering start time
+	// execution start time
 	protected $ts_start;
 
 	// output format JSON|XML|RAW
-	protected $format = '';
+	protected $format;
 
 	// extracted data
 	protected $data = [];
@@ -84,7 +86,11 @@ class ConnectorOrsr
 	// semaphore to avoid double output, e.g. if matched 1 item (DIC, ICO) we instantly return detail
 	protected $outputSent = false;
 
-	public function __construct(){
+	/**
+	* Constructor
+	*/
+	public function __construct()
+	{
 		$this->ts_start = microtime(true);
 
 		foreach(['tidy', 'mbstring', 'iconv', 'dom', 'json'] as $extension){
@@ -94,7 +100,8 @@ class ConnectorOrsr
 		}
 	}
 
-	public function resetOutput(){
+	public function resetOutput()
+	{
 		$this->outputSent = false;
 		$this->data = [];
 	}
@@ -102,11 +109,13 @@ class ConnectorOrsr
 	public function setOutputFormat($format)
 	{
 		$format = trim(strtolower($format));
+
 		if(in_array($format, ['json', 'xml', ''])){
 			$this->format = $format;
 		}else{
 			throw new \Exception('Output format ['.$format.'] not supported.');
 		}
+
 		return $this;
 	}
 
@@ -115,8 +124,8 @@ class ConnectorOrsr
 	* @param [] $data Data from requested service, which possibly will not contain ALL available attributes
 	* @param [] $force List of required attributes. Additional queries will be executed, if required attribute is empty
 	*/
-	public function normalizeData(array $data, array $force = []){
-
+	public function normalizeData(array $data, array $force = [])
+	{
 		$out = [
 			'ico' => empty($data['ico']) ? '' : $data['ico'], // e.g. 32631413
 			'obchodne_meno' => empty($data['obchodne_meno']) ? '' : $data['obchodne_meno'],
@@ -195,10 +204,10 @@ class ConnectorOrsr
 	/**
 	* Return output with extra meta data
 	*/
-	public function getOutput(){
-
+	public function getOutput()
+	{
 		if($this->outputSent){
-			// avoid duplicate output
+			// prevent from duplicate output
 			return;
 		}
 
@@ -221,16 +230,22 @@ class ConnectorOrsr
 		$this->outputSent = true;
 
 		if($this->debug){
+
 			switch(strtolower($this->format)){
 				case 'json':
 					header("Content-Type: application/json; charset=UTF-8");
 					echo json_encode($this->data);
+					break;
+				case 'xml':
+					header("Content-Type: text/xml; charset=UTF-8");
+					echo _Array2XML::get($data);
 					break;
 				default:
 					// raw format
 					header("Content-Type: text/html; charset=UTF-8");
 					echo '<pre>'.print_r($this->data, true).'</pre>';
 			}
+
 		}else{
 			return $this->data;
 		}
@@ -242,8 +257,8 @@ class ConnectorOrsr
 	* @param int $sid ID 0 - 8, prislusny sud/judikatura (jurisdiction district ID)
 	* @param int $p 0|1 Typ vypisu, default 0 = aktualny, 1 - uplny (vratane historickych zrusenych zaznamov)
 	*/
-	public function getDetailById($id, $sid, $p=0){
-
+	public function getDetailById($id, $sid, $p = 0)
+	{
 		$id = intval($id);
 		if($id < 1){
 			exit('Invalid company ID.');
@@ -265,38 +280,21 @@ class ConnectorOrsr
 			}
 		}
 
-		$data = [];
-		if($html){
-			$data = self::extractDetail($html);
-		}else{
+		if(!$html){
 			throw new \Exception('Failed loading data.');
 		}
 
-		if($this->debug){
-			switch(strtolower($this->format)){
-				case 'json':
-					header("Content-Type: application/json; charset=UTF-8");
-					echo json_encode($data);
-					break;
-				case 'xml':
-					header("Content-Type: text/xml; charset=UTF-8");
-					echo _Array2XML::get($data);
-					break;
-				default:
-					// raw format
-					header("Content-Type: text/html; charset=UTF-8");
-					echo '<pre>'.print_r($data, true).'</pre>';
-			}
-		}else{
-			return $data;
-		}
+		$this->data = self::extractDetail($html);
+
+		return $this->getOutput();
 	}
 
 	/**
 	* Fetch company page from ORSR and return parsed data
 	* @param string $link Partial link to fetch, e.g. vypis.asp?ID=54190&SID=7&P=0
 	*/
-	public function getDetailByPartialLink($link){
+	public function getDetailByPartialLink($link)
+	{
 		$data = [];
 
 		if(false !== strpos($link, 'vypis.asp?')){
@@ -318,8 +316,8 @@ class ConnectorOrsr
 	* Return subject details
 	* @param string $meno
 	*/
-	public function findByObchodneMeno($meno){
-
+	public function findByObchodneMeno($meno)
+	{
 		$meno = trim($meno);
 		$meno = iconv('utf-8', 'windows-1250', $meno);
 		$meno = urlencode($meno);
@@ -343,11 +341,13 @@ class ConnectorOrsr
 	}
 
 	/**
-	* Return subject details
+	* Lookup by subject ICO
+	*
 	* @param string $ico
+	* @return array List of matching subjects e.g. suitable for autocomplete/typeahead fields
 	*/
-	public function getDetailByICO($ico){
-
+	public function findByICO($ico)
+	{
 		$ico = preg_replace('/[^\d]/', '', $ico);
 		if(strlen($ico) != 8){
 			return [];
@@ -369,7 +369,47 @@ class ConnectorOrsr
 			}
 		}
 
+		// lookup by ICO always returns max. 1 record
 		return $this->handleFindResponse($html);
+	}
+
+	/**
+	* Looup by subject ICO & return instantly company/subject details
+	* @param string $ico Company ID (8 digits code)
+	* @return array Company / subject details
+	*/
+	public function getDetailByICO($ico)
+	{
+		$ico = preg_replace('/[^\d]/', '', $ico);
+		if(strlen($ico) != 8){
+			return [];
+		}
+
+		$path = $this->dirCache.'orsr-search-ico-'.$ico.'.html';
+
+		if($this->debug && is_file($path) && filesize($path)){
+			$html = file_get_contents($path);
+		}
+
+		// http://www.orsr.sk/hladaj_ico.asp?ICO=123&SID=0
+		// SID=0 .. sud ID (0 = any)
+		if(empty($html)){
+			$url = self::URL_BASE."/hladaj_ico.asp?ICO={$ico}&SID=0";
+			$html = file_get_contents($url);
+			if($html && $this->debug){
+				file_put_contents($path, $html);
+			}
+		}
+
+		// lookup by ICO always finds max. 1 record
+		$link = $this->handleFindResponse($html);
+
+		if($link && is_array($link)){
+			$link = current($link);
+			$this->data = $this->getDetailByPartialLink($link);
+		}
+
+		return $this->getOutput();
 	}
 
 	/**
@@ -377,8 +417,8 @@ class ConnectorOrsr
 	* @param string $priezvisko
 	* @param string $meno
 	*/
-	public function findByPriezviskoMeno($priezvisko, $meno = ''){
-
+	public function findByPriezviskoMeno($priezvisko, $meno = '')
+	{
 		$priezvisko = trim($priezvisko);
 		$priezvisko = iconv('utf-8', 'windows-1250', $priezvisko);
 		$priezvisko = urlencode($priezvisko);
@@ -411,9 +451,10 @@ class ConnectorOrsr
 	/**
 	* Handle response from ORSR with search results
 	* @param string $html Returned HTML page from ORSR
+	* @param string $formatter Custom output decorator
 	*/
-	protected function handleFindResponse($html, $formater = ''){
-
+	protected function handleFindResponse($html, $formatter = '')
+	{
 		$html = iconv('windows-1250', 'utf-8', $html);
 		$html = str_replace('windows-1250', 'utf-8', $html);
 
@@ -435,11 +476,13 @@ class ConnectorOrsr
 		$out = [];
 		if ($rows->length) {
 			foreach ($rows as $row) {
-				if($formater && method_exists($this, $formater)){
-					$out += self::{$formater}($row, $xpath);
+				if($formatter && method_exists($this, $formatter)){
+					$out += self::{$formatter}($row, $xpath);
 				}else{
-					$label = trim(str_replace('"', '', $row->nodeValue)); // niektore firmy maju zahunute uvodzovky v nazve spolocnosti
+					// drop double quotes, firmy maju zahrnute uvodzovky v nazve spolocnosti
+					$label = trim(str_replace('"', '', $row->nodeValue));
 					$links = $xpath->query(".//../td[3]/div/a", $row);
+
 					if($links->length){
 						$linkAktualny = $links->item(0)->getAttribute('href'); // e.g. "vypis.asp?ID=208887&SID=3&P=0"
 						$out[$label] = $linkAktualny;
@@ -448,12 +491,7 @@ class ConnectorOrsr
 			}
 		}
 
-		if($this->debug){
-			header("Content-Type: text/html; charset=UTF-8");
-			echo '<pre>'.print_r($out, 1).'</pre>';
-		}else{
-			return $out;
-		}
+		return $out;
 	}
 
 	/**
@@ -461,7 +499,8 @@ class ConnectorOrsr
 	* @param mixed $row
 	* @param mixed $xpath
 	*/
-	protected static function formaterMenoPriezvisko($row, $xpath){
+	protected static function formaterMenoPriezvisko($row, $xpath)
+	{
 		$label1 = trim($row->nodeValue);
 		$label2 = $xpath->query(".//../td[3]", $row);
 		$label2 = trim($label2->item(0)->nodeValue);
@@ -477,8 +516,8 @@ class ConnectorOrsr
 	* Extract tags
 	* @param string $html
 	*/
-	protected function extractDetail($html){
-
+	protected function extractDetail($html)
+	{
 		// returned data
 		$this->data = [];
 
@@ -598,7 +637,8 @@ class ConnectorOrsr
 	### process extracted tags
 	################################################################
 
-	protected function extract_prislusnySud($tag, $node, $xpath){
+	protected function extract_prislusnySud($tag, $node, $xpath)
+	{
 		// e.g. Výpis z Obchodného registra Okresného súdu Banská Bystrica
 		$out = ['prislusny_sud' => ''];
 		if(false !== mb_stripos($tag, ' súdu ', 0, 'utf-8')){
@@ -608,7 +648,8 @@ class ConnectorOrsr
 		return $out;
 	}
 
-	protected function extract_oddiel($tag, $node, $xpath){
+	protected function extract_oddiel($tag, $node, $xpath)
+	{
 		// e.g. Oddiel:  Sro ... Vložka číslo:  8429/S
 		$out = [
 			'oddiel' => '',
@@ -661,7 +702,8 @@ class ConnectorOrsr
 		return $out; // e.g. Sro
 	}
 
-	protected function extract_obchodneMeno($tag, $node, $xpath){
+	protected function extract_obchodneMeno($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		// e.g. if invalid company name with surrounding double quotes ["Harvex, s.r.o."]
 		$map = ['"' => ''];
@@ -674,7 +716,8 @@ class ConnectorOrsr
 		];
 	}
 
-	protected function extract_sidlo($tag, $node, $xpath){
+	protected function extract_sidlo($tag, $node, $xpath)
+	{
 		$line = self::getFirstTableFirstCellMultiline($node, $xpath);
 		$parts = self::line2array($line, ['street', 'city']);
 		$out = [];
@@ -700,33 +743,39 @@ class ConnectorOrsr
 		return ['adresa' => $out];
 	}
 
-	protected function extract_bydlisko($tag, $node, $xpath){
+	protected function extract_bydlisko($tag, $node, $xpath)
+	{
 		// nezavadzame novy element pre adresu, vzdy je to bud sidlo alebo bydlisko
 		return self::extract_sidlo($tag, $node, $xpath);
 	}
 
-	protected function extract_ico($tag, $node, $xpath){
+	protected function extract_ico($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		$out = preg_replace('/\s+/u', '', $out);
 		return ['ico' => $out];
 	}
 
-	protected function extract_denZapisu($tag, $node, $xpath){
+	protected function extract_denZapisu($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		return ['den_zapisu' => $out];
 	}
 
-	protected function extract_pravnaForma($tag, $node, $xpath){
+	protected function extract_pravnaForma($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		return ['pravna_forma' => $out];
 	}
 
-	protected function extract_predmetCinnost($tag, $node, $xpath){
+	protected function extract_predmetCinnost($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath, true);
 		return ['predmet_cinnosti' => $out];
 	}
 
-	protected function extract_spolocnici($tag, $node, $xpath){
+	protected function extract_spolocnici($tag, $node, $xpath)
+	{
 		$out = [];
 		$organy = $xpath->query(".//table", $node);
 		if($organy->length){
@@ -737,7 +786,8 @@ class ConnectorOrsr
 		return ['spolocnici' => $out];
 	}
 
-	protected function extract_vyskaVkladu($tag, $node, $xpath){
+	protected function extract_vyskaVkladu($tag, $node, $xpath)
+	{
 		$out = [];
 		$organy = $xpath->query(".//table", $node);
 		if($organy->length){
@@ -749,7 +799,8 @@ class ConnectorOrsr
 		return ['vyska_vkladu' => $out];
 	}
 
-	protected function extract_statutarnyOrgan($tag, $node, $xpath){
+	protected function extract_statutarnyOrgan($tag, $node, $xpath)
+	{
 		$out = [];
 		$organy = $xpath->query(".//table", $node);
 		if($organy->length){
@@ -807,7 +858,8 @@ class ConnectorOrsr
 		return ['statutarny_organ' => $out];
 	}
 
-	protected function extract_likvidátori($tag, $node, $xpath){
+	protected function extract_likvidátori($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCellMultiline($node, $xpath);
 		if($out){
 
@@ -836,19 +888,22 @@ class ConnectorOrsr
 		}
 	}
 
-	protected function extract_konanie($tag, $node, $xpath){
+	protected function extract_konanie($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		return ['konanie_menom_spolocnosti' => $out];
 	}
 
-	protected function extract_zakladneImanie($tag, $node, $xpath){
+	protected function extract_zakladneImanie($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		$out = str_replace(' Rozsah', ', Rozsah', $out); // fix "6 972 EUR Rozsah splatenia: 6 972 EUR"
 		$out = self::trimSpaceInNumber($out);
 		return ['zakladne_imanie' => $out];
 	}
 
-	protected function extract_akcie($tag, $node, $xpath){
+	protected function extract_akcie($tag, $node, $xpath)
+	{
 		$out = [];
 
 		$akcie = $xpath->query(".//table", $node);
@@ -879,7 +934,8 @@ class ConnectorOrsr
 		}
 	}
 
-	protected function extract_dozornaRada($tag, $node, $xpath){
+	protected function extract_dozornaRada($tag, $node, $xpath)
+	{
 		$out = [];
 		$rada = $xpath->query(".//table", $node);
 		if($rada->length){
@@ -932,17 +988,20 @@ class ConnectorOrsr
 		}
 	}
 
-	protected function extract_dalsieSkutocnosti($tag, $node, $xpath){
+	protected function extract_dalsieSkutocnosti($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		return ['dalsie_skutocnosti' => $out];
 	}
 
-	protected function extract_datumAktualizacie($tag, $node, $xpath){
+	protected function extract_datumAktualizacie($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath, false, ".//../td[2]");
 		return ['datum_aktualizacie' => $out];
 	}
 
-	protected function extract_datumVypisu($tag, $node, $xpath){
+	protected function extract_datumVypisu($tag, $node, $xpath)
+	{
 		$out = self::getFirstTableFirstCell($node, $xpath, false, ".//../../tr[2]/td[2]");
 		return ['datum_vypisu' => $out];
 	}
@@ -959,7 +1018,8 @@ class ConnectorOrsr
 	* @param bool|string $returnArray [true|false|auto] If FALSE, return string, if AUTO return string if only 1 item, otherwise return array
 	* @param string $xpath Extracted XPATH, default ".//table/tr/td[1]"
 	*/
-	protected static function getFirstTableFirstCell($node, $xpathObject, $returnArray = 'auto', $xpath = ".//table/tr/td[1]"){
+	protected static function getFirstTableFirstCell($node, $xpathObject, $returnArray = 'auto', $xpath = ".//table/tr/td[1]")
+	{
 		$out = [];
 		$subNodes = $xpathObject->query($xpath, $node);
 		if($subNodes->length){
@@ -983,11 +1043,15 @@ class ConnectorOrsr
 	* @param DOMXPath $xpathObject
 	* @param string $xpath Extracted XPATH, default ".//table/tr/td[1]/*"
 	*/
-	protected static function getFirstTableFirstCellMultiline($node, $xpathObject, $xpath = ".//table/tr/td[1]/*"){
+	protected static function getFirstTableFirstCellMultiline($node, $xpathObject, $xpath = ".//table/tr/td[1]/*")
+	{
 		$out = '';
+
 		/** @var DOMNodeList */
 		$subNodes = $xpathObject->query($xpath, $node);
+
 		if($subNodes->length){
+
 			foreach($subNodes as $subNode){
 				/** @var DOMElement */
 				$subNode;
@@ -995,7 +1059,9 @@ class ConnectorOrsr
 				$tmp = str_replace(',', '', $tmp);
 				$out .= ($tmp == '') ? ', ' : ' '.$tmp;
 			}
+
 		}
+
 		return trim($out, " ,\t\n");
 	}
 
@@ -1004,14 +1070,20 @@ class ConnectorOrsr
 	* @param string $number
 	*/
 	protected static function trimSpaceInNumber($number){
+
 		$out = $number;
+
 		if(preg_match('/([\d ]*)/', $out, $matches)){ // fix "6 972 989" -> "6972989"
+
 			$map = [];
+
 			foreach($matches as $match){
 				$map[trim($match)] = trim(str_replace(' ', '', $match));
 			}
+
 			$out = strtr($out, $map);
 		}
+
 		return $out;
 	}
 
@@ -1020,8 +1092,8 @@ class ConnectorOrsr
 	* @param string $str
 	* @param bool $stripExtra If true, all non human charcters will be removed, e.g. -, /, etc
 	*/
-	protected static function stripAccents($str, $stripExtra = true){
-
+	protected static function stripAccents($str, $stripExtra = true)
+	{
 		$map = array(
 			// spoluhlasky / accented consonants
 			"š" => "s", // s
@@ -1070,14 +1142,17 @@ class ConnectorOrsr
 	* @param array $keys Mapped keys
 	* @param array $separator Default comma [,]
 	*/
-	protected static function line2array($line, $keys, $separator = ','){
+	protected static function line2array($line, $keys, $separator = ',')
+	{
 		$out = [];
 		$values = explode($separator, $line);
+
 		while($keys && $values){
 			$key = trim(array_shift($keys));
 			$value = trim(array_shift($values));
 			$out[$key] = $value;
 		}
+
 		return $out;
 	}
 
@@ -1085,15 +1160,18 @@ class ConnectorOrsr
 	* Extract zip from city
 	* @param string $city e.g. Bratislava 851 05 will return zip = 851 05
 	*/
-	protected static function cityAndZip($city){
+	protected static function cityAndZip($city)
+	{
 		$out = [
 			'city' => $city,
 			'zip' => '',
 		];
+
 		if(preg_match('/([^\d]+)( [\d ]+)/', $city, $match)){
 			$out['city'] = trim($match[1]);
 			$out['zip'] = preg_replace('/\s/u','', $match[2]); // remove inline whitespaces
 		}
+
 		return $out;
 	}
 
@@ -1101,11 +1179,13 @@ class ConnectorOrsr
 	* Extract house number from street
 	* @param string $street e.g. Nejaká ulica 654/ 99-87B will extract "654/ 9987B" as a house number
 	*/
-	protected static function streetAndNumber($street){
+	protected static function streetAndNumber($street)
+	{
 		$out = [
 			'street' => $street,
 			'number' => '',
 		];
+
 		if(preg_match('/^([\d][\w]) (.+)/', $street, $match)){
 			$out['street'] = trim($match[2]);
 			$out['number'] = trim($match[1]);
@@ -1121,14 +1201,16 @@ class ConnectorOrsr
 			$out['street'] = '';
 			$out['number'] = trim($match[0]);
 		}
+
 		$out['street'] = trim(str_replace('č.', '', $out['street']));
+
 		return $out;
 	}
 }
 
 
-class _Array2XML {
-
+class _Array2XML
+{
 	private static $xml = null;
 	private static $encoding = 'UTF-8';
 
@@ -1137,7 +1219,8 @@ class _Array2XML {
 	* @param string $root Root element name
 	* @param [] $array
 	*/
-	public static function get(array $array = [], $root = 'root') {
+	public static function get(array $array = [], $root = 'root')
+	{
 		$array = _Array2XML::createXML($root, $array);
 		return $array->saveXML();
 	}
@@ -1148,7 +1231,8 @@ class _Array2XML {
 	 * @param $encoding
 	 * @param $format_output
 	 */
-	public static function init($version = '1.0', $encoding = 'UTF-8', $format_output = true) {
+	public static function init($version = '1.0', $encoding = 'UTF-8', $format_output = true)
+	{
 		self::$xml = new \DomDocument($version, $encoding);
 		self::$xml->formatOutput = $format_output;
 		self::$encoding = $encoding;
@@ -1160,7 +1244,8 @@ class _Array2XML {
 	 * @param array $arr - aray to be converterd
 	 * @return DomDocument
 	 */
-	protected static function &createXML($node_name, $arr=array()) {
+	protected static function &createXML($node_name, $arr=array())
+	{
 		$xml = self::getXMLRoot();
 		$xml->appendChild(self::convert($node_name, $arr));
 
@@ -1174,8 +1259,8 @@ class _Array2XML {
 	 * @param array $arr - aray to be converterd
 	 * @return DOMNode
 	 */
-	private static function &convert($node_name, $arr=array()) {
-
+	private static function &convert($node_name, $arr=array())
+	{
 		$xml = self::getXMLRoot();
 		$node = $xml->createElement($node_name);
 
@@ -1240,17 +1325,20 @@ class _Array2XML {
 	/*
 	 * Get the root XML node, if there isn't one, create it.
 	 */
-	private static function getXMLRoot(){
+	private static function getXMLRoot()
+	{
 		if(empty(self::$xml)) {
 			self::init();
 		}
+
 		return self::$xml;
 	}
 
 	/*
 	 * Get string representation of boolean value
 	 */
-	private static function bool2str($v){
+	private static function bool2str($v)
+	{
 		//convert boolean to text value.
 		$v = $v === true ? 'true' : $v;
 		$v = $v === false ? 'false' : $v;
@@ -1261,7 +1349,8 @@ class _Array2XML {
 	 * Check if the tag name or attribute name contains illegal characters
 	 * Ref: http://www.w3.org/TR/xml/#sec-common-syn
 	 */
-	private static function isValidTagName($tag){
+	private static function isValidTagName($tag)
+	{
 		$pattern = '/^[a-z_]+[a-z0-9\:\-\.\_]*[^:]*$/i';
 		return preg_match($pattern, $tag, $matches) && $matches[0] == $tag;
 	}
