@@ -292,8 +292,9 @@ class ConnectorOrsr
 	/**
 	* Fetch company page from ORSR and return parsed data
 	* @param string $link Partial link to fetch, e.g. vypis.asp?ID=54190&SID=7&P=0
+	* @param string $uplnyVypis 1|true = ano, 0|false = nie, inak podla vratenej linky z ORSR
 	*/
-	public function getDetailByPartialLink($link)
+	public function getDetailByPartialLink($link, $uplnyVypis = null)
 	{
 		$data = [];
 
@@ -303,6 +304,12 @@ class ConnectorOrsr
 			// P = 1 - uplny, 0 - aktualny
 			list(, $link) = explode('asp?', $link);
 			parse_str($link, $params);
+
+			if(true === $uplnyVypis || '1' == trim($uplnyVypis)){
+				$params['P'] = 1;
+			}elseif(false === $uplnyVypis || '0' === trim($uplnyVypis)){
+				$params['P'] = 0;
+			}
 
 			if(isset($params['ID'], $params['SID'], $params['P'])){
 				$data = $this->getDetailById($params['ID'], $params['SID'], $params['P']);
@@ -530,12 +537,16 @@ class ConnectorOrsr
 			'Bydlisko'         				=> 'extract_bydlisko',
 			'IČO'             				=> 'extract_ico',
 			'Deň zápisu'     				=> 'extract_denZapisu',
+			'Deň výmazu'     				=> 'extract_denVymazu',
+			'Dôvod výmazu'     				=> 'extract_dovodVymazu',
 			'Právna forma'    				=> 'extract_pravnaForma',
 			'Predmet činnosti'    			=> 'extract_predmetCinnost',
 			'Spoločníci'        			=> 'extract_spolocnici',
 			'Výška vkladu'        			=> 'extract_vyskaVkladu',
 			'Štatutárny orgán'            	=> 'extract_statutarnyOrgan',
-			'Likvidátori'                 	=> 'extract_likvidátori',
+			'Likvidátor'                 	=> 'extract_likvidátori',
+			'Likvidácia'                 	=> 'extract_likvidácia',
+			'Zastupovanie'                 	=> 'extract_zastupovanie',
 			'Konanie menom spoločnosti' 	=> 'extract_konanie',
 			'Základné imanie'             	=> 'extract_zakladneImanie',
 			'Akcie'                     	=> 'extract_akcie',
@@ -705,13 +716,33 @@ class ConnectorOrsr
 	protected function extract_obchodneMeno($tag, $node, $xpath)
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
+
 		// e.g. if invalid company name with surrounding double quotes ["Harvex, s.r.o."]
 		$map = ['"' => ''];
-		$out = str_replace(array_keys($map), $map, $out);
-		$out = trim($out);
-		$likvidacia = (false !== mb_stripos($out, 'v likvidácii')) ? 'ano' : 'nie' ;
+		$likvidacia = 'nie';
+		$outValid = '';
+		if(!is_array($out)){
+			$out = [$out];
+		}
+
+		// meno moze byt array, napr. podnik v likvidacii ma 2 zapisy, druhy s priponou "v likvidacii"
+		// vratit chceme prvy zaznam, ktory moze mat priponu "v likvidacii", nepotrebujeme duplikovane zaznamy s rovnakym menom
+		foreach($out as $id => $meno){
+			$meno = str_replace(array_keys($map), $map, $meno);
+			$meno = trim($meno);
+			if(false !== mb_stripos($meno, 'v likvidácii')){
+				$likvidacia = 'ano';
+				$outValid = $meno;
+			}
+			$out[$id] = $meno;
+		}
+
+		if(!$outValid && $out){
+			$outValid = $out[0];
+		}
+
 		return [
-			'obchodne_meno' => $out,
+			'obchodne_meno' => $outValid,
 			'likvidacia' => $likvidacia,
 		];
 	}
@@ -760,6 +791,18 @@ class ConnectorOrsr
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		return ['den_zapisu' => $out];
+	}
+
+	protected function extract_denVymazu($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCell($node, $xpath);
+		return ['den_vymazu' => $out];
+	}
+
+	protected function extract_dovodVymazu($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCell($node, $xpath);
+		return ['dovod_vymazu' => $out];
 	}
 
 	protected function extract_pravnaForma($tag, $node, $xpath)
@@ -886,6 +929,18 @@ class ConnectorOrsr
 			$out = $parts;
 			return ['likvidatori' => $out];
 		}
+	}
+
+	protected function extract_likvidácia($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCell($node, $xpath);
+		return ['likvidacia' => $out];
+	}
+
+	protected function extract_zastupovanie($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCell($node, $xpath);
+		return ['zastupovanie' => $out];
 	}
 
 	protected function extract_konanie($tag, $node, $xpath)
