@@ -873,27 +873,27 @@ class ConnectorOrsr
 					$type = $text;
 					$out[$type] = [];
 				}else if($type){
-					// add item & parse row
-					$parts = self::line2array($text, ['name', 'street', 'city', 'since']);
+					// add item & parse row - pozor na poradie, niekedy je uvedena len obec (pod menom)
+					$parts = self::line2array($text, ['name', 'city', 'street', 'since']);
 
 					if(!empty($parts['since']) && false !== strpos($parts['since'], ':')){
 						list(, $parts['since']) = explode(':', $parts['since']);
 						$parts['since'] = trim($parts['since']);
 					}
 
-					$tmp = self::line2array($parts['name'], ['name', 'function'], '-');
+					$tmp = empty($parts['name']) ? [] : self::line2array($parts['name'], ['name', 'function'], '-');
 					if(!empty($tmp['function'])){
 						$parts['name'] = $tmp['name'];
 						$parts['function'] = $tmp['function'];
 					}
 
-					$tmp = self::streetAndNumber($parts['street']);
+					$tmp = empty($parts['street']) ? [] : self::streetAndNumber($parts['street']);
 					if(!empty($tmp['number'])){
 						$parts['street'] = $tmp['street'];
 						$parts['number'] = $tmp['number'];
 					}
 
-					$tmp = self::cityAndZip($parts['city']);
+					$tmp = empty($parts['city']) ? [] : self::cityAndZip($parts['city']);
 					if(!empty($tmp['zip'])){
 						$parts['zip'] = $tmp['zip'];
 						$parts['city'] = $tmp['city'];
