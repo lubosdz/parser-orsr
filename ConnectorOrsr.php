@@ -211,8 +211,13 @@ class ConnectorOrsr
 			return;
 		}
 
+		if(!$this->data){
+			// nothing to return
+			return;
+		}
+
 		if(!is_array($this->data)){
-			exit('Invalid output data.');
+			throw new \Exception('Invalid output data.');
 		}
 
 		if(empty($this->data['meta'])){
@@ -383,9 +388,10 @@ class ConnectorOrsr
 	/**
 	* Looup by subject ICO & return instantly company/subject details
 	* @param string $ico Company ID (8 digits code)
+	* @param string $uplnyVypis 1|true = ano, 0|false = nie, inak podla vratenej linky z ORSR
 	* @return array Company / subject details
 	*/
-	public function getDetailByICO($ico)
+	public function getDetailByICO($ico, $uplnyVypis = null)
 	{
 		$ico = preg_replace('/[^\d]/', '', $ico);
 		if(strlen($ico) != 8){
@@ -413,10 +419,10 @@ class ConnectorOrsr
 
 		if($link && is_array($link)){
 			$link = current($link);
-			$this->data = $this->getDetailByPartialLink($link);
+			$this->data = $this->getDetailByPartialLink($link, $uplnyVypis);
 		}
 
-		return $this->getOutput();
+		return $this->data;
 	}
 
 	/**
