@@ -278,6 +278,8 @@ $detail : Array
 Changelog
 ---------
 
+* 1.0.4 - [08.11.2019] Added option uplny/ciastocny vypis. Extract additional attributes (den vymazu, dovod vymazu, zastupovanie), fix multiple company names & address without street (only city).
+* 1.0.3 - [02.09.2019] Added method findByICO, code cleanup & formatting
 * 1.0.2 - [14.05.2019] fixed PCRE unicode handling in different environments
 * 1.0.1 - [11.03.2019] fixed bug PHP7+ compatability
 * 1.0.0 - [12.09.2018] initial release
