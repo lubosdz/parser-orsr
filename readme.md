@@ -73,7 +73,7 @@ $orsr->setOutputFormat('xml'); // xml|json|empty string
 Príklad odpovede:
 ----------------
 
-```
+```json
 $list = $orsr->findByObchodneMeno('Matador');
 
 $list : array (
@@ -151,8 +151,8 @@ Príklad implementácie (MVC framework)
 
 OrsrController:
 
-```
-
+```php
+<?php
 use lubosdz\parserOrsr\ConnectorOrsr;
 
 public function actionFindDetailByIco()
@@ -202,7 +202,7 @@ public function actionCompanyDetail()
 
 View:
 
-```
+```html+js
 <input type="text" id="company_ico" maxlength="8" />
 
 <script type="text/javascript">
@@ -235,7 +235,7 @@ $("#company_ico").on("keyup", function(){
 Changelog
 ---------
 
-* 1.0.5 - [09.11.2019] Revert support for option uplny/ciastocny vypis. Extract Miesto podnikania, Veduci org. zlozky. Fixed parsing countries for foreigners.
+* 1.0.5 - [09.11.2019] Revert support for option uplny/ciastocny vypis. Extract Miesto podnikania, Veduci org. zlozky. Fixed parsing countries for foreigners. Updated docs.
 * 1.0.4 - [08.11.2019] Added option uplny/ciastocny vypis. Extract additional attributes (den vymazu, dovod vymazu, zastupovanie), fix multiple company names & address without street (only city).
 * 1.0.3 - [02.09.2019] Added method findByICO, code cleanup & formatting
 * 1.0.2 - [14.05.2019] fixed PCRE unicode handling in different environments
