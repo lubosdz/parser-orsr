@@ -297,9 +297,8 @@ class ConnectorOrsr
 	/**
 	* Fetch company page from ORSR and return parsed data
 	* @param string $link Partial link to fetch, e.g. vypis.asp?ID=54190&SID=7&P=0
-	* @param string $uplnyVypis 1|true = ano, 0|false = nie, inak podla vratenej linky z ORSR
 	*/
-	public function getDetailByPartialLink($link, $uplnyVypis = null)
+	public function getDetailByPartialLink($link)
 	{
 		$data = [];
 
@@ -310,11 +309,15 @@ class ConnectorOrsr
 			list(, $link) = explode('asp?', $link);
 			parse_str($link, $params);
 
+			/*
+			// zrusena moznost uplneho vypisu kvoli zasadnej zmene datovej struktury - nutne uvadzat datumy platnosti
+			// a pri niektorych polozkach vrati namiesto stringu pole - bolo by nutne prepracovat parsing a zrusit spatnu kompatabilitu
 			if(true === $uplnyVypis || '1' == trim($uplnyVypis)){
 				$params['P'] = 1;
 			}elseif(false === $uplnyVypis || '0' === trim($uplnyVypis)){
 				$params['P'] = 0;
 			}
+			*/
 
 			if(isset($params['ID'], $params['SID'], $params['P'])){
 				$data = $this->getDetailById($params['ID'], $params['SID'], $params['P']);
@@ -541,6 +544,7 @@ class ConnectorOrsr
 			'Obchodné meno' 				=> 'extract_obchodneMeno',
 			'Sídlo'         				=> 'extract_sidlo',
 			'Bydlisko'         				=> 'extract_bydlisko',
+			'Miesto podnikania' 			=> 'extract_miesto_podnikania',
 			'IČO'             				=> 'extract_ico',
 			'Deň zápisu'     				=> 'extract_denZapisu',
 			'Deň výmazu'     				=> 'extract_denVymazu',
@@ -553,6 +557,7 @@ class ConnectorOrsr
 			'Likvidátor'                 	=> 'extract_likvidátori',
 			'Likvidácia'                 	=> 'extract_likvidácia',
 			'Zastupovanie'                 	=> 'extract_zastupovanie',
+			'Vedúci'                 		=> 'extract_vedúci_org_zlozky',
 			'Konanie menom spoločnosti' 	=> 'extract_konanie',
 			'Základné imanie'             	=> 'extract_zakladneImanie',
 			'Akcie'                     	=> 'extract_akcie',
@@ -598,7 +603,7 @@ class ConnectorOrsr
 		if ($elements->length) {
 
 			foreach ($elements as $cntElements => $element) {
-				/** @var DOMElement */
+				/** @var \DOMElement */
 				$element;
 
 				// skip first X tables
@@ -606,7 +611,7 @@ class ConnectorOrsr
 					continue;
 				}
 
-				/** @var DOMNodeList */
+				/** @var \DOMNodeList */
 				$nodes = $element->childNodes;
 				if($nodes->length){
 					foreach ($nodes as $node) {
@@ -756,7 +761,7 @@ class ConnectorOrsr
 	protected function extract_sidlo($tag, $node, $xpath)
 	{
 		$line = self::getFirstTableFirstCellMultiline($node, $xpath);
-		$parts = self::line2array($line, ['street', 'city']);
+		$parts = self::line2array($line, ['street', 'city', 'country']);
 		$out = [];
 
 		// try to extract house number
@@ -773,6 +778,12 @@ class ConnectorOrsr
 			$out += ['city' => '', 'zip' => ''];
 		}
 
+		// country applies only to foreigners
+		if(!empty($parts['country'])){
+			$out += ['country' => $parts['country']];
+		}
+
+		// we only have city, but not street & nr.
 		if('' == trim(implode($out)) && $line){
 			$out['city'] = $line;
 		}
@@ -784,6 +795,12 @@ class ConnectorOrsr
 	{
 		// nezavadzame novy element pre adresu, vzdy je to bud sidlo alebo bydlisko
 		return self::extract_sidlo($tag, $node, $xpath);
+	}
+
+	protected function extract_miesto_podnikania($tag, $node, $xpath)
+	{
+		$out = self::extract_sidlo($tag, $node, $xpath);
+		return ['miesto_podnikania' => $out['adresa']];
 	}
 
 	protected function extract_ico($tag, $node, $xpath)
@@ -874,17 +891,18 @@ class ConnectorOrsr
 					$out[$type] = [];
 				}else if($type){
 					// add item & parse row - pozor na poradie, niekedy je uvedena len obec (pod menom)
-					$parts = self::line2array($text, ['name', 'city', 'street', 'since']);
-
-					if(!empty($parts['since']) && false !== strpos($parts['since'], ':')){
-						list(, $parts['since']) = explode(':', $parts['since']);
-						$parts['since'] = trim($parts['since']);
-					}
+					$parts = self::line2array($text, ['name', 'street', 'city', 'country', 'since']);
 
 					$tmp = empty($parts['name']) ? [] : self::line2array($parts['name'], ['name', 'function'], '-');
 					if(!empty($tmp['function'])){
 						$parts['name'] = $tmp['name'];
 						$parts['function'] = $tmp['function'];
+					}
+
+					if(empty($parts['city']) && empty($parts['country']) && !empty($parts['street'])){
+						// adresa bez ulice, len obec
+						$parts['city'] = $parts['street'];
+						$parts['street'] = '';
 					}
 
 					$tmp = empty($parts['street']) ? [] : self::streetAndNumber($parts['street']);
@@ -899,7 +917,22 @@ class ConnectorOrsr
 						$parts['city'] = $tmp['city'];
 					}
 
-					ksort($parts);
+					if(!empty($parts['since']) && false !== strpos($parts['since'], ':')){
+						// 4 records with country
+						list(, $parts['since']) = explode(':', $parts['since']);
+						$parts['since'] = trim($parts['since']);
+					}elseif(!empty($parts['country']) && false !== strpos($parts['country'], ':')){
+						// 3 records without country
+						list(, $parts['since']) = explode(':', $parts['country']);
+						$parts['since'] = trim($parts['since']);
+						unset($parts['country']);
+					}
+
+					if(empty($parts['country'])){
+						unset($parts['country']);
+					}
+
+					//ksort($parts);
 					$out[$type][] = $parts;
 				}
 			}
@@ -931,7 +964,7 @@ class ConnectorOrsr
 				$parts['city'] = $tmp['city'];
 			}
 
-			ksort($parts);
+			//ksort($parts);
 			$out = $parts;
 			return ['likvidatori' => $out];
 		}
@@ -947,6 +980,47 @@ class ConnectorOrsr
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		return ['zastupovanie' => $out];
+	}
+
+	protected function extract_vedúci_org_zlozky($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCellMultiline($node, $xpath);
+		if($out){
+
+			// velmi obtiazny parsing adries - nepredvidatelne texty, napr. "dlhodoby pobyt na uzemi SR", neuvedene plne adresy (niekedy len obec, ziadna ulica), niekedy je uvedena krajina ..
+			$parts = self::line2array($out, ['name', 'street', 'city', 'country', 'since'], ',',  '/(pobyt na)/');
+
+			if(!empty($parts['since']) && false !== strpos($parts['since'], ':')){
+				// 4 records with country
+				list(, $parts['since']) = explode(':', $parts['since']);
+				$parts['since'] = trim($parts['since']);
+			}elseif(!empty($parts['country']) && false !== strpos($parts['country'], ':')){
+				// 3 records without country
+				list(, $parts['since']) = explode(':', $parts['country']);
+				$parts['since'] = trim($parts['since']);
+				unset($parts['country']);
+			}
+
+			$tmp = empty($parts['street']) ? [] : self::streetAndNumber($parts['street']);
+			if(!empty($tmp['number'])){
+				$parts['street'] = $tmp['street'];
+				$parts['number'] = $tmp['number'];
+			}
+
+			$tmp = empty($parts['city']) ? [] : self::cityAndZip($parts['city']);
+			if(!empty($tmp['zip'])){
+				$parts['zip'] = $tmp['zip'];
+				$parts['city'] = $tmp['city'];
+			}
+
+			if(empty($parts['country'])){
+				unset($parts['country']);
+			}
+
+			//ksort($parts);
+			$out = $parts;
+			return ['veduci_organizacnej_zlozky' => $out];
+		}
 	}
 
 	protected function extract_konanie($tag, $node, $xpath)
@@ -1039,7 +1113,7 @@ class ConnectorOrsr
 					$parts['zip'] = '';
 				}
 
-				ksort($parts);
+				//ksort($parts);
 				$out[] = $parts;
 			}
 		}
@@ -1108,13 +1182,13 @@ class ConnectorOrsr
 	{
 		$out = '';
 
-		/** @var DOMNodeList */
+		/** @var \DOMNodeList */
 		$subNodes = $xpathObject->query($xpath, $node);
 
 		if($subNodes->length){
 
 			foreach($subNodes as $subNode){
-				/** @var DOMElement */
+				/** @var \DOMElement */
 				$subNode;
 				$tmp = trim($subNode->nodeValue);
 				$tmp = str_replace(',', '', $tmp);
@@ -1202,15 +1276,19 @@ class ConnectorOrsr
 	* @param string $line String to explode
 	* @param array $keys Mapped keys
 	* @param array $separator Default comma [,]
+	* @param string $skipRegex Skip row if contains ignored string (regular expression)
 	*/
-	protected static function line2array($line, $keys, $separator = ',')
+	protected static function line2array($line, $keys, $separator = ',', $skipRegex = '')
 	{
 		$out = [];
 		$values = explode($separator, $line);
 
 		while($keys && $values){
-			$key = trim(array_shift($keys));
 			$value = trim(array_shift($values));
+			if($skipRegex && preg_match($skipRegex, $value)){
+				continue;
+			}
+			$key = trim(array_shift($keys));
 			$out[$key] = $value;
 		}
 
@@ -1218,7 +1296,8 @@ class ConnectorOrsr
 	}
 
 	/**
-	* Extract zip from city
+	* Extract zip from city.
+	* Foreign addresses may also include the "district" key
 	* @param string $city e.g. Bratislava 851 05 will return zip = 851 05
 	*/
 	protected static function cityAndZip($city)
@@ -1228,9 +1307,12 @@ class ConnectorOrsr
 			'zip' => '',
 		];
 
-		if(preg_match('/([^\d]+)( [\d ]+)/', $city, $match)){
+		if(preg_match('/([^\d]+)( [\d ]+)([^\d]+)?/', $city, $match)){
 			$out['city'] = trim($match[1]);
-			$out['zip'] = preg_replace('/\s/u','', $match[2]); // remove inline whitespaces
+			$out['zip'] = preg_replace('/\s/u', '', $match[2]); // remove inline whitespaces
+			if(!empty($match[3])){
+				$out['district'] = trim($match[3]);
+			}
 		}
 
 		return $out;

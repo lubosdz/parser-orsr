@@ -278,6 +278,7 @@ $detail : Array
 Changelog
 ---------
 
+* 1.0.5 - [09.11.2019] Revert support for option uplny/ciastocny vypis. Extract Miesto podnikania, Veduci org. zlozky. Fixed parsing countries for foreigners.
 * 1.0.4 - [08.11.2019] Added option uplny/ciastocny vypis. Extract additional attributes (den vymazu, dovod vymazu, zastupovanie), fix multiple company names & address without street (only city).
 * 1.0.3 - [02.09.2019] Added method findByICO, code cleanup & formatting
 * 1.0.2 - [14.05.2019] fixed PCRE unicode handling in different environments
