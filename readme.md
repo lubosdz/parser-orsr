@@ -73,7 +73,7 @@ $orsr->setOutputFormat('xml'); // xml|json|empty string
 Príklad odpovede:
 ----------------
 
-```json
+```
 $list = $orsr->findByObchodneMeno('Matador');
 
 $list : array (
@@ -202,7 +202,7 @@ public function actionCompanyDetail()
 
 View:
 
-```html+js
+```html
 <input type="text" id="company_ico" maxlength="8" />
 
 <script type="text/javascript">
