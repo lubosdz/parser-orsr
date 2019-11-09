@@ -146,8 +146,8 @@ $detail : Array
 ```
 
 
-Príklad implementácie (MVC framework)
--------------------------------------
+Príklad implementácie (MVC framework, e.g. [Yii](https://www.yiiframework.com/))
+--------------------------------------------------------------------------------
 
 OrsrController:
 
