@@ -3,8 +3,8 @@
 * Parser pre vypis z obchodneho registra SR
 * Lookup service for Slovak commercial register (www.orsr.sk)
 *
-* Version 1.0.5 (released 09.11.2019)
-* (c) 2015 - 2019 lubosdz@gmail.com
+* Version 1.0.6 (released 25.08.2020)
+* (c) 2015 - 2020 lubosdz@gmail.com
 *
 * ------------------------------------------------------------------
 * Disclaimer / Prehlásenie:
@@ -56,56 +56,78 @@
 namespace lubosdz\parserOrsr;
 
 /**
-* Slovak Business Register DOM XML parser
+* DOM XML parser class for Slovak Business Register (Business Directory of Slovak Republic)
 */
 class ConnectorOrsr
 {
-	const API_VERSION = '1.0.5';
+	const API_VERSION = '1.0.6';
 
-	// by extracting target URL it's easier to update if they switch to secure URL or remove www prefix etc.
+	/** @var string Endpoint URL */
 	const URL_BASE = 'http://www.orsr.sk';
 
-	const TYP_OSOBY_PRAVNICKA = 'pravnicka';
-	const TYP_OSOBY_FYZICKA = 'fyzicka';
+	const
+		// predefined constants
+		TYP_OSOBY_PRAVNICKA = 'pravnicka',
+		TYP_OSOBY_FYZICKA = 'fyzicka';
 
-	// stores some data into local files to avoid multiple requests during development
+	/** @var bool Stores some data into local files to avoid multiple requests during development */
 	public $debug = false;
 
-	// path to cache directory in debug mode (add trailing slash)
+	/** @var string Path to cache directory in debug mode (add trailing slash) */
 	public $dirCache;
 
-	// execution start time
+	/** @var bool If false, make php tidy extension optional. Definitely NOT recommended, but for some hostings the only way to go. */
+	public $useTidy = true;
+
+	/** @var bool If false, return empty results on error (looks like no matches found and user won't see error message) */
+	public $showXmlErrors = true;
+
+	/** @var integer Execution start time */
 	protected $ts_start;
 
-	// output format JSON|XML|RAW
-	protected $format;
+	/** @var null|string Output format JSON|XML|RAW */
+	protected $format = '';
 
-	// extracted data
+	/** @var array Extracted data */
 	protected $data = [];
 
-	// semaphore to avoid double output, e.g. if matched 1 item (DIC, ICO) we instantly return detail
+	/** @var bool Semaphore to avoid double output, e.g. if matched 1 item (DIC, ICO) we instantly return detail */
 	protected $outputSent = false;
 
 	/**
-	* Constructor
+	* Constructor - verify required extensions are loaded
 	*/
 	public function __construct()
 	{
-		$this->ts_start = microtime(true);
+		$required = ['mbstring', 'iconv', 'dom', 'json'];
+		if($this->useTidy){
+			array_push($required, 'tidy');
+		}
 
-		foreach(['tidy', 'mbstring', 'iconv', 'dom', 'json'] as $extension){
-			if(!extension_loaded($extension)){
+		foreach ( $required as $extension ) {
+			if ( !extension_loaded($extension) ) {
 				exit('Missing required PHP extension ['.$extension.'].');
 			}
 		}
+
+		$this->ts_start = microtime(true);
 	}
 
+	/**
+	* Clear previosuly extracted data & semaphore that output has been already sent
+	* Use e.g. to re-send request with the same instance
+	*/
 	public function resetOutput()
 	{
 		$this->outputSent = false;
 		$this->data = [];
 	}
 
+	/**
+	* Set output format
+	* @param string $format e.g. json|xml or empty string (default, raw output)
+	* @return ConnectorOrsr
+	*/
 	public function setOutputFormat($format)
 	{
 		$format = trim(strtolower($format));
@@ -121,8 +143,8 @@ class ConnectorOrsr
 
 	/**
 	* Return only data required for formulars
-	* @param [] $data Data from requested service, which possibly will not contain ALL available attributes
-	* @param [] $force List of required attributes. Additional queries will be executed, if required attribute is empty
+	* @param array $data Data from requested service, which possibly will not contain ALL available attributes
+	* @param array $force List of required attributes. Additional queries will be executed, if required attribute is empty
 	*/
 	public function normalizeData(array $data, array $force = [])
 	{
@@ -190,7 +212,7 @@ class ConnectorOrsr
 								}
 							}
 						}else{
-							// parser ZRSR.SK not implemented yet
+							// parser ZRSR.SK not implemented yet (the implementation requires live token obtained from a previous request - can YOU extract it? :-)
 						}
 						break;
 					default:
@@ -474,16 +496,34 @@ class ConnectorOrsr
 		$html = iconv('windows-1250', 'utf-8', $html);
 		$html = str_replace('windows-1250', 'utf-8', $html);
 
-		// ensure valid XHTML markup
-		$tidy = new \tidy();
-		$html = $tidy->repairString($html, array(
-			'output-xhtml' => true,
-			//'show-body-only' => true, // we MUST have HEAD with charset!!!
-		), 'utf8');
-
 		// load XHTML into DOM document
 		$xml = new \DOMDocument('1.0', 'utf-8');
-		$xml->loadHTML($html);
+
+		// ensure valid XHTML markup
+		if ($this->useTidy) {
+			$tidy = new \tidy();
+			$html = $tidy->repairString($html, array(
+				'output-xhtml' => true,
+				//'show-body-only' => true, // we MUST have HEAD with charset!!!
+			), 'utf8');
+		} else {
+			libxml_use_internal_errors(true);
+			$xml->preserveWhiteSpace = false;
+		}
+
+		if( !$xml->loadHTML($html) ){
+			// whoops, parsing error
+			$errors = libxml_get_errors();
+			libxml_clear_errors();
+			if(!$this->showXmlErrors){
+				return [];
+			}
+			if(!$errors && !empty($php_errormsg)){
+				$errors = $php_errormsg;
+			}
+			throw new \Exception('XML Error - failed loading XHTML page into DOM XML parser - corrupted XML structure. Please consider enabling tidy extension.'.($errors ? "\n Found errors:\n".print_r($errors, 1) : ''));
+		}
+
 		$xpath = new \DOMXpath($xml);
 
 		$rows = $xpath->query("/html/body/table[3]/tr/td[2]"); // all tables /html/body/table
@@ -517,10 +557,10 @@ class ConnectorOrsr
 	*/
 	protected static function formaterMenoPriezvisko($row, $xpath)
 	{
-		$label1 = trim($row->nodeValue);
+		$label1 = $row->nodeValue;
 		$label2 = $xpath->query(".//../td[3]", $row);
-		$label2 = trim($label2->item(0)->nodeValue);
-		$label = "{$label1} ({$label2})";
+		$label2 = $label2->item(0)->nodeValue;
+		$label = self::trimMulti("{$label1} ({$label2})");
 
 		$links = $xpath->query(".//../td[4]/div/a", $row);
 		$linkAktualny = $links->item(0)->getAttribute('href'); // e.g. "vypis.asp?ID=208887&SID=3&P=0"
@@ -578,23 +618,39 @@ class ConnectorOrsr
 		$html = iconv('windows-1250', 'utf-8', $html);
 		$html = str_replace('windows-1250', 'utf-8', $html);
 
+		$xml = new \DOMDocument('1.0', 'utf-8');
+
 		// ensure valid XHTML markup
-		$tidy = new \tidy();
-		$html = $tidy->repairString($html, array(
-			'output-xhtml' => true,
-			//'show-body-only' => true, // we MUST have HEAD with charset!!!
-		), 'utf8');
+		if ($this->useTidy) {
+			$tidy = new \tidy();
+			$html = $tidy->repairString($html, array(
+				'output-xhtml' => true,
+				//'show-body-only' => true, // we MUST have HEAD with charset!!!
+			), 'utf8');
+		} else {
+			libxml_use_internal_errors(true);
+			$xml->preserveWhiteSpace = false;
+		}
 
-		// purify whitespaces
-		$html = strtr($html, [
-			'&nbsp;' => ' ',
-		]);
-
-		$html = preg_replace('/\s+/u', ' ', $html);
+		// convert &nbsp; entity to a simple whitespace & replace multiple whitespaces to a single whitespace
+		$html = strtr($html, ['&nbsp;' => ' ']);
+		$html = self::trimMulti($html);
 
 		// load XHTML into DOM document
-		$xml = new \DOMDocument('1.0', 'utf-8');
-		$xml->loadHTML($html);
+		if( !$xml->loadHTML($html) ){
+			// whoops, parsing error
+			$errors = libxml_get_errors();
+			libxml_clear_errors();
+			if(!$this->showXmlErrors){
+				$this->data = [];
+				return [];
+			}
+			if(!$errors && !empty($php_errormsg)){
+				$errors = $php_errormsg;
+			}
+			throw new \Exception('XML Error - failed loading XHTML page into DOM XML parser - corrupted XML structure. Please consider enabling tidy extension.'.($errors ? "\n Found errors:\n".print_r($errors, 1) : ''));
+		}
+
 		$xpath = new \DOMXpath($xml);
 
 		$elements = $xpath->query("/html/body/*"); // all tables /html/body/table
@@ -619,7 +675,7 @@ class ConnectorOrsr
 						if($firstCol->length){
 							$firstCol = $firstCol->item(0)->nodeValue;
 							if($firstCol){
-								$firstCol = preg_replace('/\s+/u', ' ', $firstCol);
+								$firstCol = self::trimMulti($firstCol);
 								foreach($tags as $tag => $callback){
 									if(false !== mb_stripos($firstCol, $tag, 0, 'utf-8')){
 										$secondCol = $xpath->query(".//td[2]", $node);
@@ -806,7 +862,7 @@ class ConnectorOrsr
 	protected function extract_ico($tag, $node, $xpath)
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
-		$out = preg_replace('/\s+/u', '', $out);
+		$out = self::trimMulti($out);
 		return ['ico' => $out];
 	}
 
@@ -859,6 +915,7 @@ class ConnectorOrsr
 		if($organy->length){
 			foreach($organy as $organ){
 				$tmp = self::getFirstTableFirstCellMultiline($organ, $xpath, ".//tr/td[1]/*");
+				$tmp = preg_replace('/(\d) (\d)/', '$1$2', $tmp); // kill spaces inside sequence of digits, e.g. 4 648 EUR -> 4648 EUR
 				$out[] = str_replace(' Splaten', ', Splaten', $tmp); // fix "Ing. Tibor Rauch,  Vklad: 200 000 Sk Splatené: 200 000 Sk"
 			}
 		}
@@ -1034,6 +1091,8 @@ class ConnectorOrsr
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		$out = str_replace(' Rozsah', ', Rozsah', $out); // fix "6 972 EUR Rozsah splatenia: 6 972 EUR"
 		$out = self::trimSpaceInNumber($out);
+		$out = self::trimMulti($out);
+		$out = str_replace(' , ', ', ', $out);
 		return ['zakladne_imanie' => $out];
 	}
 
@@ -1158,8 +1217,22 @@ class ConnectorOrsr
 		$out = [];
 		$subNodes = $xpathObject->query($xpath, $node);
 		if($subNodes->length){
+			/** @var \DOMElement[] */
 			foreach($subNodes as $subNode){
-				$out[] = trim($subNode->nodeValue);
+				if($subNode->hasChildNodes()){
+					$tmp = [];
+					foreach($subNode->childNodes as $childNode){
+						// fix multiple lines in a single cell separated by brackets <br>
+						$comma = 'br' == $childNode->nodeName ? ', ' : '';
+						$tmp[] = $comma . trim($childNode->nodeValue);
+					}
+					$tmp = implode(' ', $tmp);
+					$tmp = self::trimMulti($tmp);
+					$tmp = str_replace(' , ', ', ', $tmp);
+					$out[] = trim($tmp, ' ,');
+				}else{
+					$out[] = trim($subNode->nodeValue);
+				}
 			}
 		}
 		if(strtolower($returnArray) == 'auto'){
@@ -1187,14 +1260,16 @@ class ConnectorOrsr
 
 		if($subNodes->length){
 
+			/** @var \DOMElement[] */
 			foreach($subNodes as $subNode){
-				/** @var \DOMElement */
-				$subNode;
 				$tmp = trim($subNode->nodeValue);
+				$tmp = self::trimMulti($tmp); // fix multiple whitespaces
+				//$tmp = self::trimSpaceInNumber($tmp); // works, but may not be wished for PSC
 				$tmp = str_replace(',', '', $tmp);
 				$out .= ($tmp == '') ? ', ' : ' '.$tmp;
 			}
 
+			$out = self::trimMulti($out); // fix multiple whitespaces again :-|
 		}
 
 		return trim($out, " ,\t\n");
@@ -1220,6 +1295,14 @@ class ConnectorOrsr
 		}
 
 		return $out;
+	}
+
+	/**
+	* @param string $txt Simple trim for multiple whitespaces
+	*/
+	protected static function trimMulti($txt)
+	{
+		return trim(preg_replace('/\s+/u', ' ', $txt));
 	}
 
 	/**

@@ -68,6 +68,10 @@ $orsr->debug = true;
 
 // nastavenie formátu výstupu
 $orsr->setOutputFormat('xml'); // xml|json|empty string
+
+// (!) NOT RECOMMENDED - bez tidy extension + vypnute zobrazenim XML chyb
+$orsr->useTidy = false;
+$orsr->showXmlErrors = false;
 ```
 
 Príklad odpovede:
@@ -235,6 +239,7 @@ $("#company_ico").on("keyup", function(){
 Changelog
 ---------
 
+* 1.0.6 - [25.08.2020] Make tidy extension optional (NOT recommended, but for some hostings the only way to go). Minor improvements e.g. multiple whitespaces replaced with a single whitespace.
 * 1.0.5 - [09.11.2019] Revert support for option uplny/ciastocny vypis. Extract Miesto podnikania, Veduci org. zlozky. Fixed parsing countries for foreigners. Updated docs.
 * 1.0.4 - [08.11.2019] Added option uplny/ciastocny vypis. Extract additional attributes (den vymazu, dovod vymazu, zastupovanie), fix multiple company names & address without street (only city).
 * 1.0.3 - [02.09.2019] Added method findByICO, code cleanup & formatting
