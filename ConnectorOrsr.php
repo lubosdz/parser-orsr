@@ -65,10 +65,17 @@ class ConnectorOrsr
 	/** @var string Endpoint URL */
 	const URL_BASE = 'https://www.orsr.sk';
 
+	/** @var float Fixed exchange rate SKK/EUR since 2009 */
+	const EXCH_RATE_SKK_EUR = 30.126;
+
 	const
-		// predefined constants
+		// person types
 		TYP_OSOBY_PRAVNICKA = 'pravnicka',
 		TYP_OSOBY_FYZICKA = 'fyzicka';
+
+	#################################################
+	##  Configurable public props
+	#################################################
 
 	/** @var bool Stores some data into local files to avoid multiple requests during development */
 	public $debug = false;
@@ -81,6 +88,11 @@ class ConnectorOrsr
 
 	/** @var bool If false, return empty results on error (looks like no matches found and user won't see error message) */
 	public $showXmlErrors = true;
+
+	/** @var int The number of seconds to cut off request if server not responding, default 60 as per [default_socket_timeout] */
+	public $urlTimeoutSecs = 5;
+
+	#################################################
 
 	/** @var integer Execution start time */
 	protected $ts_start;
@@ -106,11 +118,44 @@ class ConnectorOrsr
 
 		foreach ( $required as $extension ) {
 			if ( !extension_loaded($extension) ) {
-				exit('Missing required PHP extension ['.$extension.'].');
+				throw new \Exception('Missing required PHP extension ['.$extension.'].');
 			}
 		}
 
 		$this->ts_start = microtime(true);
+	}
+
+	/**
+	* Separate method to control timeout when fetching from remote server
+	* @param string $url URL to be fetched from
+	*/
+	protected function loadUrl($url)
+	{
+		/*
+		static $cntRequests = 0;
+
+		if($cntRequests && 0 == ($cntRequests % 3)){
+			// ORSR.sk may randomly reject frequent requests, some rules apply
+			// wait 1 sec every 3 requests
+			sleep(1);
+		}
+
+		++$cntRequests;
+		*/
+
+		$this->urlTimeoutSecs = intval($this->urlTimeoutSecs);
+
+		if ($this->urlTimeoutSecs < 0 || $this->urlTimeoutSecs > 60) {
+			$this->urlTimeoutSecs = 5;
+		}
+
+		$ctx = stream_context_create([
+			"http" => [
+				"timeout" => $this->urlTimeoutSecs,
+			]
+		]);
+
+		return file_get_contents($url, null, $ctx);
 	}
 
 	/**
@@ -288,7 +333,7 @@ class ConnectorOrsr
 	{
 		$id = intval($id);
 		if($id < 1){
-			exit('Invalid company ID.');
+			throw new \Exception('Invalid company ID.');
 		}
 
 		$hash = $id.'-'.$sid.'-'.$p;
@@ -301,7 +346,7 @@ class ConnectorOrsr
 			// SID (ID sudu dla kraja) = 1 .. 8 different companies :-(
 			// P = 1 - uplny, otherwise 0 = aktualny
 			$url = self::URL_BASE."/vypis.asp?ID={$id}&SID={$sid}&P={$p}";
-			$html = file_get_contents($url);
+			$html = $this->loadUrl($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
 			}
@@ -331,16 +376,6 @@ class ConnectorOrsr
 			list(, $link) = explode('asp?', $link);
 			parse_str($link, $params);
 
-			/*
-			// zrusena moznost uplneho vypisu kvoli zasadnej zmene datovej struktury - nutne uvadzat datumy platnosti
-			// a pri niektorych polozkach vrati namiesto stringu pole - bolo by nutne prepracovat parsing a zrusit spatnu kompatabilitu
-			if(true === $uplnyVypis || '1' == trim($uplnyVypis)){
-				$params['P'] = 1;
-			}elseif(false === $uplnyVypis || '0' === trim($uplnyVypis)){
-				$params['P'] = 0;
-			}
-			*/
-
 			if(isset($params['ID'], $params['SID'], $params['P'])){
 				$data = $this->getDetailById($params['ID'], $params['SID'], $params['P']);
 			}
@@ -368,7 +403,7 @@ class ConnectorOrsr
 			// R=on ... only aktualne zaznamy, otherwise hladaj aj v historickych zaznamoch
 			// PF=0 .. pravna forma (0 = any)
 			$url = self::URL_BASE."/hladaj_subjekt.asp?OBMENO={$meno}&PF=0&R=on";
-			$html = file_get_contents($url);
+			$html = $this->loadUrl($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
 			}
@@ -400,7 +435,7 @@ class ConnectorOrsr
 		// SID=0 .. sud ID (0 = any)
 		if(empty($html)){
 			$url = self::URL_BASE."/hladaj_ico.asp?ICO={$ico}&SID=0";
-			$html = file_get_contents($url);
+			$html = $this->loadUrl($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
 			}
@@ -413,10 +448,9 @@ class ConnectorOrsr
 	/**
 	* Looup by subject ICO & return instantly company/subject details
 	* @param string $ico Company ID (8 digits code)
-	* @param string $uplnyVypis 1|true = ano, 0|false = nie, inak podla vratenej linky z ORSR
 	* @return array Company / subject details
 	*/
-	public function getDetailByICO($ico, $uplnyVypis = null)
+	public function getDetailByICO($ico)
 	{
 		$ico = preg_replace('/[^\d]/', '', $ico);
 		if(strlen($ico) != 8){
@@ -433,7 +467,7 @@ class ConnectorOrsr
 		// SID=0 .. sud ID (0 = any)
 		if(empty($html)){
 			$url = self::URL_BASE."/hladaj_ico.asp?ICO={$ico}&SID=0";
-			$html = file_get_contents($url);
+			$html = $this->loadUrl($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
 			}
@@ -444,7 +478,7 @@ class ConnectorOrsr
 
 		if($link && is_array($link)){
 			$link = current($link);
-			$this->data = $this->getDetailByPartialLink($link, $uplnyVypis);
+			$this->data = $this->getDetailByPartialLink($link);
 		}
 
 		return $this->data;
@@ -477,7 +511,7 @@ class ConnectorOrsr
 			// PF=0 .. pravna forma (0 = any)
 			// SID=0 .. sud ID (0 = any)
 			$url = self::URL_BASE."/hladaj_osoba.asp?PR={$priezvisko}&MENO={$meno}&SID=0&T=f0&R=on";
-			$html = file_get_contents($url);
+			$html = $this->loadUrl($url);
 			if($html && $this->debug){
 				file_put_contents($path, $html);
 			}
@@ -589,6 +623,8 @@ class ConnectorOrsr
 			'Deň zápisu'     				=> 'extract_denZapisu',
 			'Deň výmazu'     				=> 'extract_denVymazu',
 			'Dôvod výmazu'     				=> 'extract_dovodVymazu',
+			'Spoločnosť zrušená od' 		=> 'extract_spolocnostZrusenaOd',
+			'Právny dôvod zrušenia' 		=> 'extract_pravnyDovodZrusenia',
 			'Právna forma'    				=> 'extract_pravnaForma',
 			'Predmet činnosti'    			=> 'extract_predmetCinnost',
 			'Spoločníci'        			=> 'extract_spolocnici',
@@ -596,13 +632,18 @@ class ConnectorOrsr
 			'Štatutárny orgán'            	=> 'extract_statutarnyOrgan',
 			'Likvidátor'                 	=> 'extract_likvidátori',
 			'Likvidácia'                 	=> 'extract_likvidácia',
+			'Vyhlásenie konkurzu'          	=> 'extract_vyhlasenieKonkurzu',
+			'Správca konkurznej podstaty'  	=> 'extract_spravcaKonkurznejPodstaty',
 			'Zastupovanie'                 	=> 'extract_zastupovanie',
 			'Vedúci'                 		=> 'extract_vedúci_org_zlozky',
 			'Konanie menom spoločnosti' 	=> 'extract_konanie',
 			'Základné imanie'             	=> 'extract_zakladneImanie',
+			'členský vklad'       			=> 'extract_zakladnyClenskyVklad',
 			'Akcie'                     	=> 'extract_akcie',
 			'Dozorná rada'                  => 'extract_dozornaRada',
 			'Ďalšie právne skutočnosti'    	=> 'extract_dalsieSkutocnosti',
+			'Zlúčenie, splynutie' 			=> 'extract_zlucenieSplynutie',
+			'Právny nástupca' 				=> 'extract_pravnyNastupca',
 			'Dátum aktualizácie'        	=> 'extract_datumAktualizacie',
 			'Dátum výpisu'                 	=> 'extract_datumVypisu',
 		];
@@ -615,7 +656,8 @@ class ConnectorOrsr
 		$tags = array_combine($keys, $tags);
 
 		// convert encoding
-		$html = iconv('windows-1250', 'utf-8', $html);
+		// fix: added //TRANSLIT//IGNORE - some foreign companies may contain invalid UTF-8 chars
+		$html = iconv('windows-1250', 'utf-8//TRANSLIT//IGNORE', $html);
 		$html = str_replace('windows-1250', 'utf-8', $html);
 
 		$xml = new \DOMDocument('1.0', 'utf-8');
@@ -761,23 +803,23 @@ class ConnectorOrsr
 
 		if(preg_match('/(firm)/i', $typ)){
 			$out['typ_osoby'] = self::TYP_OSOBY_FYZICKA;
-			$out['hlavicka'] = 'Fyzická osoba zapísaná v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'].'.';
-			$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
+			$out['hlavicka'] = 'Fyzická osoba zapísaná v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
+			$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 		}else{
 			$out['typ_osoby'] = self::TYP_OSOBY_PRAVNICKA;
 			if(preg_match('/(dr)/', $typ)){
-				$out['hlavicka'] = 'Družstvo zapísané v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
+				$out['hlavicka'] = 'Družstvo zapísané v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
+				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 			}elseif(preg_match('/(psn)/', $typ)){
-				$out['hlavicka'] = 'Podnik zapísaný v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', vložka '.$out['vlozka'];
+				$out['hlavicka'] = 'Podnik zapísaný v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
+				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 			}else{
 				$out['hlavicka'] = 'Spoločnosť zapísaná v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
 				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 			}
 		}
 
-		return $out; // e.g. Sro
+		return $out;
 	}
 
 	protected function extract_obchodneMeno($tag, $node, $xpath)
@@ -786,7 +828,7 @@ class ConnectorOrsr
 
 		// e.g. if invalid company name with surrounding double quotes ["Harvex, s.r.o."]
 		$map = ['"' => ''];
-		$likvidacia = 'nie';
+		$likvidacia = 0; // change since 1.0.7 - we return 0 rather than 'nie'
 		$outValid = '';
 		if(!is_array($out)){
 			$out = [$out];
@@ -797,8 +839,8 @@ class ConnectorOrsr
 		foreach($out as $id => $meno){
 			$meno = str_replace(array_keys($map), $map, $meno);
 			$meno = trim($meno);
-			if(false !== mb_stripos($meno, 'v likvidácii')){
-				$likvidacia = 'ano';
+			if(false !== mb_stripos($meno, 'v likvidácii') || false !== mb_stripos($meno, 'v konkurze')){
+				$likvidacia = 1; // change since 1.0.7 - we return 1 instead of "ano"
 				$outValid = $meno;
 			}
 			$out[$id] = $meno;
@@ -808,8 +850,12 @@ class ConnectorOrsr
 			$outValid = $out[0];
 		}
 
+		// change date e.g. 31.12.2020, usable e.g. when company name changed
+		$since = self::getEventDate($node, $xpath);
+
 		return [
 			'obchodne_meno' => $outValid,
+			'obchodne_meno_since' => $since,
 			'likvidacia' => $likvidacia,
 		];
 	}
@@ -818,6 +864,15 @@ class ConnectorOrsr
 	{
 		$line = self::getFirstTableFirstCellMultiline($node, $xpath);
 		$parts = self::line2array($line, ['street', 'city', 'country']);
+
+		if(!substr_count($line, ',')){
+			// e.g. "Poprad" - uvedena len obec
+			$parts = self::line2array($line, ['city']);
+		}else{
+			// typicky "Galvaniho 15/C, Bratislava 821 04"
+			$parts = self::line2array($line, ['street', 'city', 'country']);
+		}
+
 		$out = [];
 
 		// try to extract house number
@@ -844,6 +899,8 @@ class ConnectorOrsr
 			$out['city'] = $line;
 		}
 
+		$out['since'] = self::getEventDate($node, $xpath);
+
 		return ['adresa' => $out];
 	}
 
@@ -862,7 +919,7 @@ class ConnectorOrsr
 	protected function extract_ico($tag, $node, $xpath)
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
-		$out = self::trimMulti($out);
+		$out = self::trimAll($out); // fix 05/2021: zacali vkladat medzeru do ICO, povodne "14099608", najdene aj "14 099 608"
 		return ['ico' => $out];
 	}
 
@@ -875,6 +932,15 @@ class ConnectorOrsr
 	protected function extract_denVymazu($tag, $node, $xpath)
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
+		if(is_array($out)){
+			// moze sa vyskytnut chybny zapis - niektore subjekty maju 2x riadok pod sebou s rovnakym datumom, vtedy vrati pole
+			// fix: prevezmeme prvy datum
+			if(!empty($out[0]) && preg_match('/(\d{1,2}\.\d{1,2}\.\d{4})/', $out[0], $match)){
+				$out = trim($match[0]);
+			}else{
+				return;
+			}
+		}
 		return ['den_vymazu' => $out];
 	}
 
@@ -882,6 +948,51 @@ class ConnectorOrsr
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
 		return ['dovod_vymazu' => $out];
+	}
+
+	protected function extract_spolocnostZrusenaOd($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCell($node, $xpath);
+		return ['spolocnostZrusenaOd' => $out];
+	}
+
+	protected function extract_zlucenieSplynutie($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCell($node, $xpath);
+		return ['zlucenieSplynutie' => $out];
+	}
+
+	protected function extract_pravnyDovodZrusenia($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCell($node, $xpath);
+		return ['pravnyDovodZrusenia' => $out];
+	}
+
+	protected function extract_pravnyNastupca($tag, $node, $xpath)
+	{
+		$out = self::getFirstTableFirstCellMultiline($node, $xpath);
+		if($out){
+
+			$parts = self::line2array($out, ['name', 'street', 'city']);
+
+			$tmp = self::streetAndNumber($parts['street']);
+			if(!empty($tmp['number'])){
+				$parts['street'] = $tmp['street'];
+				$parts['number'] = $tmp['number'];
+			}
+
+			$tmp = self::cityAndZip($parts['city']);
+			if(!empty($tmp['zip'])){
+				$parts['zip'] = $tmp['zip'];
+				$parts['city'] = $tmp['city'];
+			}
+
+			$parts['since'] = self::getEventDate($node, $xpath);
+
+			//ksort($parts);
+			$out = $parts;
+			return ['pravny_nastupca' => $out];
+		}
 	}
 
 	protected function extract_pravnaForma($tag, $node, $xpath)
@@ -902,7 +1013,34 @@ class ConnectorOrsr
 		$organy = $xpath->query(".//table", $node);
 		if($organy->length){
 			foreach($organy as $organ){
-				$out[] = self::getFirstTableFirstCellMultiline($organ, $xpath, ".//tr/td[1]/*");
+				$text = self::getFirstTableFirstCellMultiline($organ, $xpath, ".//tr/td[1]/*");
+
+				if(substr_count($text, ',') >= 4 && false !== stripos($text, 'repub')){
+					$parts = self::line2array($text, ['function', 'name', 'street', 'city', 'country']);
+				}else{
+					$parts = self::line2array($text, ['name', 'street', 'city', 'country']);
+				}
+
+				if(preg_match('/(.+)\s*IČO\s*:\s*\d/u', $parts['name'], $match)){
+					$parts['name'] = explode('IČO', $parts['name'])[0];
+					$parts['name'] = trim($parts['name'], ' ,;-:');
+				}
+
+				$tmp = empty($parts['street']) ? [] : self::streetAndNumber($parts['street']);
+				if(!empty($tmp['number'])){
+					$parts['street'] = $tmp['street'];
+					$parts['number'] = $tmp['number'];
+				}
+
+				$tmp = empty($parts['city']) ? [] : self::cityAndZip($parts['city']);
+				if(!empty($tmp['zip'])){
+					$parts['zip'] = $tmp['zip'];
+					$parts['city'] = $tmp['city'];
+				}
+
+				$parts['since'] = self::getEventDate($node, $xpath);
+
+				$out[] = $parts;
 			}
 		}
 		return ['spolocnici' => $out];
@@ -916,7 +1054,52 @@ class ConnectorOrsr
 			foreach($organy as $organ){
 				$tmp = self::getFirstTableFirstCellMultiline($organ, $xpath, ".//tr/td[1]/*");
 				$tmp = preg_replace('/(\d) (\d)/', '$1$2', $tmp); // kill spaces inside sequence of digits, e.g. 4 648 EUR -> 4648 EUR
-				$out[] = str_replace(' Splaten', ', Splaten', $tmp); // fix "Ing. Tibor Rauch,  Vklad: 200 000 Sk Splatené: 200 000 Sk"
+				$tmp = str_replace(' Splaten', ', Splaten', $tmp); // fix "Ing. Tibor Rauch,  Vklad: 200 000 Sk Splatené: 200 000 Sk"
+				$parts = self::line2array($tmp, ['name', 'vklad', 'splatene']);
+
+				if(!empty($parts['vklad']) && false !== strpos($parts['vklad'], ':')){
+					list(, $parts['vklad']) = explode(':', $parts['vklad']);
+					$parts['vklad'] = trim($parts['vklad']);
+					// remove "penazny vklad" in "1667 EUR ( peňažný vklad )"
+					if(false !== strpos($parts['vklad'], '(')){
+						$parts['vklad'] = explode('(', $parts['vklad'])[0];
+						$parts['vklad'] = trim($parts['vklad']);
+					}
+				}
+
+				if(!empty($parts['splatene']) && false !== strpos($parts['splatene'], ':')){
+					list(, $parts['splatene']) = explode(':', $parts['splatene']);
+					$parts['splatene'] = trim($parts['splatene']);
+				}
+
+				// zistime menu, prip. urobime prepocet na EUR. Mena moze byt EUR alebo Sk (pre zaniknute spolocnosti pred digitalizaciou)
+				if(!empty($parts['vklad']) && preg_match('/([\d\.]+) ([^\d]+)/', $parts['vklad'], $match)){
+					$orig = $parts['vklad'];
+					$parts['currency'] = trim($match[2]); // meny by mali byt vzdy zhodne - suma aj splatene
+					$parts['vklad'] = round(trim($match[1]), 2);
+					if(false !== stripos($parts['currency'], 'Sk')){
+						$parts['vklad'] = round($parts['vklad'] / self::EXCH_RATE_SKK_EUR, 2);
+						$parts['vklad_orig'] = $orig;
+						$parts['currency'] = 'EUR';
+					}
+				}
+
+				if(!empty($parts['splatene']) && preg_match('/([\d\.]+) ([^\d]+)/', $parts['splatene'], $match)){
+					$orig = $parts['splatene'];
+					$parts['currency'] = trim($match[2]); // meny by mali byt vzdy zhodne - suma aj splatene
+					$parts['splatene'] = round(trim($match[1]), 2);
+					if(false !== stripos($parts['currency'], 'Sk')){
+						$parts['splatene'] = round($parts['splatene'] / self::EXCH_RATE_SKK_EUR, 2);
+						$parts['splatene_orig'] = $orig;
+						$parts['currency'] = 'EUR';
+					}
+				}
+
+				if(empty($parts['splatene'])){
+					unset($parts['splatene']);
+				}
+
+				$out[] = $parts;
 			}
 		}
 		return ['vyska_vkladu' => $out];
@@ -1033,6 +1216,26 @@ class ConnectorOrsr
 		return ['likvidacia' => $out];
 	}
 
+	protected function extract_vyhlasenieKonkurzu($tag, $node, $xpath)
+	{
+		$txt = self::getFirstTableFirstCell($node, $xpath);
+		$out = ['konkurz' => [
+			'detail' => $txt,
+		]];
+		// zistime datum vyhlasenie konkurzu v "Dátum vyhlásenia konkurzu: 24.2.2012 Uznesením Okresného súdu ..."
+		if($out && preg_match('/konkurzu:\s(\d{1,2}\.\d{1,2}\.\d{4})/', $txt, $match)){
+			$out['konkurz']['since'] = trim($match[1]);
+		}
+		return $out;
+	}
+
+	protected function extract_spravcaKonkurznejPodstaty($tag, $node, $xpath)
+	{
+		// zhodna struktura atributov
+		$out = $this->extract_vedúci_org_zlozky($tag, $node, $xpath);
+		return ['spravca_konkurznej_podstaty' => $out['veduci_organizacnej_zlozky']];
+	}
+
 	protected function extract_zastupovanie($tag, $node, $xpath)
 	{
 		$out = self::getFirstTableFirstCell($node, $xpath);
@@ -1092,8 +1295,54 @@ class ConnectorOrsr
 		$out = str_replace(' Rozsah', ', Rozsah', $out); // fix "6 972 EUR Rozsah splatenia: 6 972 EUR"
 		$out = self::trimSpaceInNumber($out);
 		$out = self::trimMulti($out);
+		// since 1.0.7 - fix vyska vkladu s desat. miestom napr. Vklad: 331,939189 EUR
+		if(preg_match('/\d+,\d+/', $out, $match)){
+			$fixed = str_replace(',', '.', $match[0]);
+			$out = str_replace($match[0], $fixed, $out);
+		}
 		$out = str_replace(' , ', ', ', $out);
+		$out = self::line2array($out, ['imanie', 'splatene']);
+		if(!empty($out['splatene']) && false !== strpos($out['splatene'], ':')){
+			list(, $out['splatene']) = explode(':', $out['splatene']);
+			$out['splatene'] = trim($out['splatene']);
+		}
+		// zistime menu, prip. urobime prepocet na EUR. Mena moze byt EUR alebo Sk (pre zaniknute spolocnosti pred digitalizaciou)
+		if(!empty($out['imanie']) && preg_match('/([\d\.]+) ([^\d]+)/', $out['imanie'], $match)){
+			$orig = $out['imanie'];
+			$out['currency'] = trim($match[2]); // meny by mali byt vzdy zhodne - imanie aj splatene
+			$out['imanie'] = round(trim($match[1]), 2);
+			if(false !== stripos($out['currency'], 'Sk')){
+				$out['imanie'] = round($out['imanie'] / self::EXCH_RATE_SKK_EUR, 2);
+				$out['imanie_orig'] = $orig;
+				$out['currency'] = 'EUR';
+			}
+		}
+		if(!empty($out['splatene']) && preg_match('/([\d\.]+) ([^\d]+)/', $out['splatene'], $match)){
+			$orig = $out['splatene'];
+			// e.g. "200000 Sk" or "1234.45 EUR"
+			$out['currency'] = trim($match[2]);
+			$out['splatene'] = round(trim($match[1]), 2);
+			if(false !== stripos($out['currency'], 'Sk')){
+				$out['splatene'] = round($out['splatene'] / self::EXCH_RATE_SKK_EUR, 2);
+				$out['splatene_orig'] = $orig;
+				$out['currency'] = 'EUR';
+			}
+		}
 		return ['zakladne_imanie' => $out];
+	}
+
+	protected function extract_zakladnyClenskyVklad($tag, $node, $xpath)
+	{
+		$out = [];
+		$vklad = self::getFirstTableFirstCell($node, $xpath);
+		if(!is_array($vklad)){
+			$vklad = [$vklad];
+		}
+		foreach($vklad as $row){
+			$row = self::trimSpaceInNumber($row);
+			$out[] = self::trimMulti($row);
+		}
+		return ['zakladny_clensky_vklad' => $out];
 	}
 
 	protected function extract_akcie($tag, $node, $xpath)
@@ -1184,7 +1433,26 @@ class ConnectorOrsr
 
 	protected function extract_dalsieSkutocnosti($tag, $node, $xpath)
 	{
-		$out = self::getFirstTableFirstCell($node, $xpath);
+		$out = [];
+
+		// extract event dates for each row - nacitame aj druhy stlpec tabulky s datumom
+		$rows = self::getFirstTableFirstCell($node, $xpath, true, './/table/tr');
+
+		// since 1.0.7 - extract event dates
+		foreach($rows as $row){
+			// datum udalosti je vzdy na konci, e.g. "O zmene stanov rozhodlo valné zhromaždenie (od: 24.07.1992)"
+			if(preg_match('/ \(od:\s*(\d{1,2}\.\d{1,2}\.\d{4})\)$/i', $row, $match)){
+				$date = trim($match[1]);
+				$row = trim(explode(' (od:', $row)[0]);
+			}else{
+				$date = '';
+			}
+			$out[] = [
+				'eventText' => $row,
+				'eventDate' => $date,
+			];
+		}
+
 		return ['dalsie_skutocnosti' => $out];
 	}
 
@@ -1246,6 +1514,31 @@ class ConnectorOrsr
 	}
 
 	/**
+	* Return item date validity - datum platnosti zaznamu
+	* @param DOMElement $node
+	* @param DOMXPath $xpathObject
+	* @param string $xpath Extracted XPATH, default ".//table/tr/td[1]/*"
+	*/
+	protected static function getEventDate($node, $xpathObject, $xpath = ".//table/tr/td[2]")
+	{
+		$out = '';
+		$subNodes = $xpathObject->query($xpath, $node);
+
+		if($subNodes->length){
+			/** @var \DOMElement[] */
+			foreach($subNodes as $subNode){
+				$txt = trim($subNode->nodeValue);
+				if(preg_match('/\(od:\s*(\d{1,2}\.\d{1,2}\.\d{4})/i', $txt, $match)){
+					$out = $match[1];
+					break;
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	/**
 	* Return value of second column with multilines separated by comma
 	* @param DOMElement $node
 	* @param DOMXPath $xpathObject
@@ -1265,6 +1558,13 @@ class ConnectorOrsr
 				$tmp = trim($subNode->nodeValue);
 				$tmp = self::trimMulti($tmp); // fix multiple whitespaces
 				//$tmp = self::trimSpaceInNumber($tmp); // works, but may not be wished for PSC
+
+				// fix since 1.0.7 - normalize numbers with decimals, e.g. vyska vkladu s desat. miestom napr. Vklad: 331,939189 EUR
+				if(preg_match('/\d+,\d+/', $tmp, $match)){
+					$fixed = str_replace(',', '.', $match[0]);
+					$tmp = str_replace($match[0], $fixed, $tmp);
+				}
+
 				$tmp = str_replace(',', '', $tmp);
 				$out .= ($tmp == '') ? ', ' : ' '.$tmp;
 			}
@@ -1298,11 +1598,42 @@ class ConnectorOrsr
 	}
 
 	/**
-	* @param string $txt Simple trim for multiple whitespaces
+	* @param string $txt Replace multiple consecutive whitespaces with a single space
 	*/
 	protected static function trimMulti($txt)
 	{
 		return trim(preg_replace('/\s+/u', ' ', $txt));
+	}
+
+	/**
+	* @param string $txt Simple trim for all whitespaces, including between characters
+	*/
+	protected static function trimAll($txt)
+	{
+		return trim(preg_replace('/\s+/u', '', $txt));
+	}
+
+	/**
+	* Odstrani medzery medzi pismenami, napr. "p r e d s e d a" => "predseda"
+	* @param string $txt
+	*/
+	public static function trimInsideChars($txt)
+	{
+		$parts = explode(' ', $txt);
+		if(count($parts) > 3){
+			// potencialny kandidat - preverime, ci su vsetky parts len 1 character
+			$fixme = true;
+			foreach($parts as $chr){
+				if(mb_strlen($chr, 'utf-8') > 1){
+					$fixme = false;
+					break;
+				}
+			}
+			if($fixme){
+				$txt = implode('', $parts);
+			}
+		}
+		return trim($txt);
 	}
 
 	/**
@@ -1326,6 +1657,8 @@ class ConnectorOrsr
 			"č" => "c", // c
 			"Ŕ" => "R", // R
 			"ŕ" => "r", // r
+			"Ř" => "R", // R
+			"ř" => "r", // r
 			"ň" => "n", // n
 			"Ň" => "N", // N
 			"ď" => "d", // u
@@ -1348,6 +1681,31 @@ class ConnectorOrsr
 			"Ú" => "U",
 			"ý" => "y",
 			"Ý" => "Y",
+
+			// german, hungarian
+			"ß" => "ss",
+			"ü" => "u",
+			"Ü" => "U",
+			"Ö" => "O",
+			"ö" => "o",
+			"Ő" => "O",
+			"ő" => "o",
+			"ű" => "u",
+			"Ű" => "U",
+
+			// polish
+			"Ł" => "L",
+			"ł" => "l",
+			"Ą" => "A",
+			"ą" => "a",
+			"ę" => "e",
+			"Ę" => "E",
+			"Ś" => "S",
+			"ś" => "s",
+			"Ń" => "n",
+			"ń" => "n",
+			"ź" => "z",
+			"Ź" => "Z",
 		);
 
 		$str = str_replace( array_keys($map), array_values($map), $str);
@@ -1390,12 +1748,17 @@ class ConnectorOrsr
 			'zip' => '',
 		];
 
-		if(preg_match('/([^\d]+)( [\d ]+)([^\d]+)?/', $city, $match)){
+		if(preg_match('/(.+) (\d\d\d ?\d\d)([^\d]+)?$/', $city, $match)){
+			// extract PSC from "Bratislava 1 811 07"
 			$out['city'] = trim($match[1]);
 			$out['zip'] = preg_replace('/\s/u', '', $match[2]); // remove inline whitespaces
 			if(!empty($match[3])){
 				$out['district'] = trim($match[3]);
 			}
+		}elseif(preg_match('/(.+) ([\d\-]+)$/', $city, $match)){
+			// niektore zahranicne formaty PSC napr. "Szczecin 71-252" (Polsky format ZIP)
+			$out['city'] = trim($match[1]);
+			$out['zip'] = trim($match[2]);
 		}
 
 		return $out;
@@ -1407,28 +1770,32 @@ class ConnectorOrsr
 	*/
 	protected static function streetAndNumber($street)
 	{
+		$street = trim(str_replace('č.', ' ', $street)); // e.g. č.123 -> 123
+
 		$out = [
 			'street' => $street,
 			'number' => '',
 		];
 
-		if(preg_match('/^([\d][\w]) (.+)/', $street, $match)){
+		if(preg_match('/^([\d][\w]) (.+)/u', $street, $match)){
 			$out['street'] = trim($match[2]);
 			$out['number'] = trim($match[1]);
-		}elseif(preg_match('/(.+)( [\d \/\-\w]+)/', $street, $match)){
+		}elseif(preg_match('/(.+)( [\d \/\-\w]+)/u', $street, $match)){
+			// very often. e.g "Galvaniho 15/C" or "Vlčie hrdlo 90" or "Golianova ul."
 			$out['street'] = trim($match[1]);
 			$out['number'] = trim($match[2]);
+			if(strtolower($out['number']) == 'ul'){
+				$out['number'] = ''; // zmazeme nezmyselne cislo - vyskytuje sa len zriedkavo, ak je skratka "ul." na konci adresy
+			}
 		}elseif(!preg_match('/([\d]+)/', $street, $match)){
-			// no number included, only place name, e.g. Belusa
+			// no number included, only place name, e.g. "Belusa" or "Sládkovičovo"
 			$out['street'] = '';
 			$out['number'] = '';
-		}elseif(preg_match('/([\d \/\-\w]+)/', $street, $match)){
-			// only house number
+		}elseif(preg_match('/([\d \/\-\w]+)/u', $street, $match)){
+			// only house number e.g. "123/D"
 			$out['street'] = '';
 			$out['number'] = trim($match[0]);
 		}
-
-		$out['street'] = trim(str_replace('č.', '', $out['street']));
 
 		return $out;
 	}

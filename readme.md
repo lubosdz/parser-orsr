@@ -239,11 +239,55 @@ $("#company_ico").on("keyup", function(){
 Changelog
 ---------
 
-* 1.0.7 - [xx.xx.2022] Added unit tests passing PHP 5.6 - 8.1, updated endpoint URL to secure connection, minor fixes
-* 1.0.6 - [25.08.2020] Make tidy extension optional (NOT recommended, but for some hostings the only way to go). Minor improvements e.g. multiple whitespaces replaced with a single whitespace.
-* 1.0.5 - [09.11.2019] Revert support for option uplny/ciastocny vypis. Extract Miesto podnikania, Veduci org. zlozky. Fixed parsing countries for foreigners. Updated docs.
-* 1.0.4 - [08.11.2019] Added option uplny/ciastocny vypis. Extract additional attributes (den vymazu, dovod vymazu, zastupovanie), fix multiple company names & address without street (only city).
-* 1.0.3 - [02.09.2019] Added method findByICO, code cleanup & formatting
-* 1.0.2 - [14.05.2019] fixed PCRE unicode handling in different environments
-* 1.0.1 - [11.03.2019] fixed bug PHP7+ compatability
-* 1.0.0 - [12.09.2018] initial release
+1.0.7 - 06.01.2022
+------------------
+* Added unit tests passing PHP 5.6 - 8.1
+* Updated endpoint URL to HTTP -> HTTPS
+* Separate method for loading remote URL with configurable timeout (default 5 secs)
+* Many parsing improvements
+* Fix invalid UTF-8 chars for some foreign companies, strip off accents from HU, PL, CZ company names
+* Parsing item dates - e.g. item since or eventDate
+* Normalized currency conversion to EUR (e.g. vyska vkladu) if denominated in SKK
+* minor BC break: attribute `likvidacia` now returns 1|0 instead of ano|nie
+* Added new parsed sections:
+	* Spoločnosť zrušená od
+	* Právny dôvod zrušenia
+	* Vyhlásenie konkurzu
+	* Správca konkurznej podstaty
+	* členský vklad
+	* Zlúčenie, splynutie
+	* Právny nástupca
+
+1.0.6 - 25.08.2020
+------------------
+* Make tidy extension optional (NOT recommended, but for some hostings the only way to go)
+* Minor improvements e.g. multiple whitespaces replaced with a single whitespace
+
+1.0.5 - 09.11.2019
+------------------
+* Revert support for option uplny/ciastocny vypis
+* Extract Miesto podnikania, Veduci org. zlozky
+* Fixed parsing countries for foreigners
+* Updated documentation
+
+1.0.4 - 08.11.2019
+------------------
+* Added option uplny/ciastocny vypis
+* Extract additional attributes (den vymazu, dovod vymazu, zastupovanie)
+* fix multiple company names & address without street (only city)
+
+1.0.3 - 02.09.2019
+------------------
+* Added method findByICO, code cleanup & formatting
+
+1.0.2 - 14.05.2019
+------------------
+* fixed PCRE unicode handling in different environments
+
+1.0.1 - 11.03.2019
+------------------
+* fixed bug PHP7+ compatability
+
+1.0.0 - 12.09.2018
+------------------
+* initial release
