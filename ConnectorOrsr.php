@@ -63,7 +63,7 @@ class ConnectorOrsr
 	const API_VERSION = '1.0.6';
 
 	/** @var string Endpoint URL */
-	const URL_BASE = 'http://www.orsr.sk';
+	const URL_BASE = 'https://www.orsr.sk';
 
 	const
 		// predefined constants
@@ -702,7 +702,7 @@ class ConnectorOrsr
 		$this->data = ['meta' => [
 			'api_version' => self::API_VERSION,
 			'sign' => strtoupper(md5(serialize($this->data))),
-			'server' => $_SERVER['SERVER_NAME'],
+			'server' => empty($_SERVER['SERVER_NAME']) ? '' : $_SERVER['SERVER_NAME'],
 			'time' => date('d.m.Y H:i:s'),
 			'sec' => number_format(microtime(true)-$this->ts_start, 3),
 			'mb' => number_format(memory_get_usage()/1024/1024, 3),
