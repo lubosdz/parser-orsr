@@ -155,7 +155,7 @@ class ConnectorOrsr
 			]
 		]);
 
-		return file_get_contents($url, null, $ctx);
+		return file_get_contents($url, false, $ctx);
 	}
 
 	/**
