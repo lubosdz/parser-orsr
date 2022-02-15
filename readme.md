@@ -239,6 +239,10 @@ $("#company_ico").on("keyup", function(){
 Changelog
 ---------
 
+1.0.8 - 15.02.2022
+------------------
+* Fix compatability with PHP 8.1+
+
 1.0.7 - 06.01.2022
 ------------------
 * Added unit tests passing PHP 5.6 - 8.1
