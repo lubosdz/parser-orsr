@@ -193,6 +193,15 @@ class ConnectorOrsr
 	*/
 	public function normalizeData(array $data, array $force = [])
 	{
+		// flatten array if needed
+		if(!empty($data['obchodne_meno'][0])){
+			$data['obchodne_meno'] = $data['obchodne_meno'][0];
+		}
+		if(!empty($data['adresa'][0])){
+			$data['adresa'] = $data['adresa'][0];
+		}
+
+		// normalize attributes
 		$out = [
 			'ico' => empty($data['ico']) ? '' : $data['ico'], // e.g. 32631413
 			'obchodne_meno' => empty($data['obchodne_meno']) ? '' : $data['obchodne_meno'],
