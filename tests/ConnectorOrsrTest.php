@@ -1,13 +1,13 @@
 <?php
 /**
 * Tests for Slovak Rebublic Business Directory Parser - ORSR.sk - Obchodny register SR
-* Tests passing PHP 5.6 - 8.1
+* Tests passing PHP 5.6 - 8.2.3 as of 06/2023
 */
 
 use lubosdz\parserOrsr\ConnectorOrsr;
 use PHPUnit\Framework\TestCase;
 
-class TemplateEngineTest extends TestCase
+class ConnectorOrsrTest extends TestCase
 {
 	// short delay 0.5 sec after request
 	const DELAY_MSEC = 500000;
@@ -45,10 +45,10 @@ class TemplateEngineTest extends TestCase
 
 		/**
 		Sample response: : array =
-			MATADOR Automotive Vráble, a.s.: string = "vypis.asp?ID=1319&SID=9&P=0"
+			MATADOR HOLDING, a.s.: string = "vypis.asp?ID=427252&SID=2&P=0"
 		*/
-		$data = $connector->findByICO('31411801'); // ICO = 8 digits
-		$this->assertTrue($data && is_array($data) && false !== stripos(key($data), 'Automotive'));
+		$data = $connector->findByICO('36 294 268'); // ICO = 8 digits, autostrip spaces
+		$this->assertTrue($data && is_array($data) && false !== stripos(key($data), 'Matador'));
 		usleep(self::DELAY_MSEC);
 		$connector->resetOutput();
 	}
@@ -90,6 +90,10 @@ class TemplateEngineTest extends TestCase
 		*/
 		$data = $connector->getDetailById(1366, 9);
 		$this->assertTrue(!empty($data['obchodne_meno']) && false !== stripos($data['obchodne_meno'], 'Agrostav'));
+
+		// since 01/06/2023 (1.0.9) - check typ sudu
+		$this->assertTrue(!empty($data['typ_sudu']) && ConnectorOrsr::TYP_SUDU_OKRESNY == $data['typ_sudu']);
+
 		usleep(self::DELAY_MSEC);
 		$connector->resetOutput();
 
@@ -98,8 +102,11 @@ class TemplateEngineTest extends TestCase
 		$this->assertTrue(empty($data));
 		$connector->resetOutput();
 
-		$data = $connector->getDetailByICO('31411801');
+		$data = $connector->getDetailByICO('36 294 268');
 		$this->assertTrue(!empty($data['obchodne_meno']) && false !== stripos($data['obchodne_meno'], 'Matador'));
+
+		// since 01/06/2023 (1.0.9) - check typ sudu
+		$this->assertTrue(!empty($data['typ_sudu']) && ConnectorOrsr::TYP_SUDU_MESTSKY == $data['typ_sudu']);
 		usleep(self::DELAY_MSEC);
 	}
 

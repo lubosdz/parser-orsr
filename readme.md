@@ -239,6 +239,12 @@ $("#company_ico").on("keyup", function(){
 Changelog
 ---------
 
+1.0.9 - 02.06.2023
+------------------
+* Support "Mestský súd" along with traditional "Okresný súd"
+* Fix multiline company name with EOLs
+* tests passing 8.2.3
+
 1.0.8 - 15.02.2022
 ------------------
 * Fix compatability with PHP 8.1+

@@ -3,8 +3,8 @@
 * Parser pre vypis z obchodneho registra SR
 * Lookup service for Slovak commercial register (www.orsr.sk)
 *
-* Version 1.0.6 (released 25.08.2020)
-* (c) 2015 - 2020 lubosdz@gmail.com
+* Version 1.0.9 (released 02.06.2023)
+* (c) 2015 - 2023 lubosdz@gmail.com
 *
 * ------------------------------------------------------------------
 * Disclaimer / Prehlásenie:
@@ -60,7 +60,7 @@ namespace lubosdz\parserOrsr;
 */
 class ConnectorOrsr
 {
-	const API_VERSION = '1.0.6';
+	const API_VERSION = '1.0.9';
 
 	/** @var string Endpoint URL */
 	const URL_BASE = 'https://www.orsr.sk';
@@ -73,15 +73,16 @@ class ConnectorOrsr
 		TYP_OSOBY_PRAVNICKA = 'pravnicka',
 		TYP_OSOBY_FYZICKA = 'fyzicka';
 
-    const
-        TYP_SUDU_OKRESNY = 'OS',
-        TYP_SUDU_MESTSKY = 'MS';
+	const
+		// court type - since 01/06/2023
+		TYP_SUDU_OKRESNY = 'OS', // default court "Okresny sud", valid also before 01/06/2023
+		TYP_SUDU_MESTSKY = 'MS'; // court in major cities (Bratislava, Kosice) marked as "Mestský súd", since 01/06/2023
 
 	#################################################
 	##  Configurable public props
 	#################################################
 
-    /** @var bool Stores some data into local files to avoid multiple requests during development */
+	/** @var bool Stores some data into local files to avoid multiple requests during development */
 	public $debug = false;
 
 	/** @var string Path to cache directory in debug mode (add trailing slash) */
@@ -582,8 +583,8 @@ class ConnectorOrsr
 				if($formatter && method_exists($this, $formatter)){
 					$out += self::{$formatter}($row, $xpath);
 				}else{
-					// drop double quotes, firmy maju zahrnute uvodzovky v nazve spolocnosti
-					$label = trim(str_replace('"', '', $row->nodeValue));
+					// drop double quotes, nazov firmy moze obsahovat uvodzovky, alebo EOLs (multiline)
+					$label = trim(str_replace(['"', "\r\n"], ['', ' '], $row->nodeValue));
 					$links = $xpath->query(".//../td[3]/div/a", $row);
 
 					if($links->length){
@@ -772,16 +773,19 @@ class ConnectorOrsr
 
 	protected function extract_prislusnySud($tag, $node, $xpath)
 	{
-		// e.g. Výpis z Obchodného registra Okresného súdu Banská Bystrica
+		// e.g. Výpis z Obchodného registra Okresného súdu Trnava (default)
+		// since 01/06/2023 also possible e.g. Výpis z Obchodného registra Mestského súdu Bratislava III
 		$out = [
-            'typ_sudu' => self::TYP_SUDU_OKRESNY,
-            'prislusny_sud' => ''
-        ];
+			'typ_sudu' => self::TYP_SUDU_OKRESNY,
+			'prislusny_sud' => ''
+		];
+		// extract district e.g. Bratislava
 		if(false !== mb_stripos($tag, ' súdu ', 0, 'utf-8')){
 			list(, $out['prislusny_sud']) = explode(' súdu ', $tag);
 		}
-		if(false !== mb_stripos($tag, ' Mestského súdu ', 0, 'utf-8')){
-            $out['typ_sudu'] = self::TYP_SUDU_MESTSKY;
+		// detect court type - Mestsky or Okresny, we prefer avoiding multibyte comparison and shortest possible non-conflicting string
+		if(false !== stripos($tag, ' Mestsk')){
+			$out['typ_sudu'] = self::TYP_SUDU_MESTSKY;
 		}
 		$out = array_map('trim', $out);
 		return $out;
@@ -820,12 +824,12 @@ class ConnectorOrsr
 		// Dr = druzstvo
 		$typ = strtolower(self::stripAccents($out['oddiel']));
 
-        $sud_long = "Okresného súdu";
-        $sud_short = "OS";
-        if($this->data['typ_sudu'] === self::TYP_SUDU_MESTSKY){
-            $sud_long = "Mestskeho súdu";
-            $sud_short = "MS";
-        }
+		$sud_long = "Okresného súdu";
+		$sud_short = "OS";
+		if($this->data['typ_sudu'] === self::TYP_SUDU_MESTSKY){
+			$sud_long = "Mestského súdu";
+			$sud_short = "MS";
+		}
 
 		if(preg_match('/(firm)/i', $typ)){
 			$out['typ_osoby'] = self::TYP_OSOBY_FYZICKA;
@@ -865,7 +869,7 @@ class ConnectorOrsr
 		foreach($out as $id => $meno){
 			$meno = str_replace(array_keys($map), $map, $meno);
 			$meno = trim($meno);
-			if(false !== mb_stripos($meno, 'v likvidácii') || false !== mb_stripos($meno, 'v konkurze')){
+			if(false !== mb_stripos($meno, 'v likvidácii', 0, 'utf-8') || false !== mb_stripos($meno, 'v konkurze', 0, 'utf-8')){
 				$likvidacia = 1; // change since 1.0.7 - we return 1 instead of "ano"
 				$outValid = $meno;
 			}
