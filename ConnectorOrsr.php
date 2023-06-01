@@ -73,11 +73,15 @@ class ConnectorOrsr
 		TYP_OSOBY_PRAVNICKA = 'pravnicka',
 		TYP_OSOBY_FYZICKA = 'fyzicka';
 
+    const
+        TYP_SUDU_OKRESNY = 'OS',
+        TYP_SUDU_MESTSKY = 'MS';
+
 	#################################################
 	##  Configurable public props
 	#################################################
 
-	/** @var bool Stores some data into local files to avoid multiple requests during development */
+    /** @var bool Stores some data into local files to avoid multiple requests during development */
 	public $debug = false;
 
 	/** @var string Path to cache directory in debug mode (add trailing slash) */
@@ -769,9 +773,15 @@ class ConnectorOrsr
 	protected function extract_prislusnySud($tag, $node, $xpath)
 	{
 		// e.g. Výpis z Obchodného registra Okresného súdu Banská Bystrica
-		$out = ['prislusny_sud' => ''];
+		$out = [
+            'typ_sudu' => self::TYP_SUDU_OKRESNY,
+            'prislusny_sud' => ''
+        ];
 		if(false !== mb_stripos($tag, ' súdu ', 0, 'utf-8')){
 			list(, $out['prislusny_sud']) = explode(' súdu ', $tag);
+		}
+		if(false !== mb_stripos($tag, ' Mestského súdu ', 0, 'utf-8')){
+            $out['typ_sudu'] = self::TYP_SUDU_MESTSKY;
 		}
 		$out = array_map('trim', $out);
 		return $out;
@@ -810,21 +820,28 @@ class ConnectorOrsr
 		// Dr = druzstvo
 		$typ = strtolower(self::stripAccents($out['oddiel']));
 
+        $sud_long = "Okresného súdu";
+        $sud_short = "OS";
+        if($this->data['typ_sudu'] === self::TYP_SUDU_MESTSKY){
+            $sud_long = "Mestskeho súdu";
+            $sud_short = "MS";
+        }
+
 		if(preg_match('/(firm)/i', $typ)){
 			$out['typ_osoby'] = self::TYP_OSOBY_FYZICKA;
-			$out['hlavicka'] = 'Fyzická osoba zapísaná v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
-			$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
+			$out['hlavicka'] = 'Fyzická osoba zapísaná v obchodnom registri '.$sud_long.' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
+			$out['hlavicka_kratka'] = $sud_short . ' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 		}else{
 			$out['typ_osoby'] = self::TYP_OSOBY_PRAVNICKA;
 			if(preg_match('/(dr)/', $typ)){
-				$out['hlavicka'] = 'Družstvo zapísané v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
+				$out['hlavicka'] = 'Družstvo zapísané v obchodnom registri '.$sud_long.' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
+				$out['hlavicka_kratka'] = $sud_short . ' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 			}elseif(preg_match('/(psn)/', $typ)){
-				$out['hlavicka'] = 'Podnik zapísaný v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
+				$out['hlavicka'] = 'Podnik zapísaný v obchodnom registri '.$sud_long.' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
+				$out['hlavicka_kratka'] = $sud_short . ' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 			}else{
-				$out['hlavicka'] = 'Spoločnosť zapísaná v obchodnom registri Okresného súdu '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
-				$out['hlavicka_kratka'] = 'OS '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
+				$out['hlavicka'] = 'Spoločnosť zapísaná v obchodnom registri '.$sud_long.' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'].'.';
+				$out['hlavicka_kratka'] = $sud_short . ' '.$this->data['prislusny_sud'].', oddiel '.$out['oddiel'].', vložka '.$out['vlozka'];
 			}
 		}
 
