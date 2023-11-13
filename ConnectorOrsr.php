@@ -354,7 +354,7 @@ class ConnectorOrsr
 					break;
 				case 'xml':
 					header("Content-Type: text/xml; charset=UTF-8");
-					echo _Array2XML::get($data);
+					echo _Array2XML::get($this->data);
 					break;
 				default:
 					// raw format
@@ -1561,8 +1561,8 @@ class ConnectorOrsr
 	/**
 	* Return value of second column
 	* Multiple tables can reuse Xpath pattern.
-	* @param DOMElement $node
-	* @param DOMXPath $xpathObject
+	* @param \DOMElement $node
+	* @param \DOMXPath $xpathObject
 	* @param bool|string $returnArray [true|false|auto] If FALSE, return string, if AUTO return string if only 1 item, otherwise return array
 	* @param string $xpath Extracted XPATH, default ".//table/tr/td[1]"
 	*/
@@ -1601,8 +1601,8 @@ class ConnectorOrsr
 
 	/**
 	* Return item date validity - datum platnosti zaznamu
-	* @param DOMElement $node
-	* @param DOMXPath $xpathObject
+	* @param \DOMElement $node
+	* @param \DOMXPath $xpathObject
 	* @param string $xpath Extracted XPATH, default ".//table/tr/td[1]/*"
 	*/
 	protected static function getEventDate($node, $xpathObject, $xpath = ".//table/tr/td[2]")
@@ -1626,8 +1626,8 @@ class ConnectorOrsr
 
 	/**
 	* Return value of second column with multilines separated by comma
-	* @param DOMElement $node
-	* @param DOMXPath $xpathObject
+	* @param \DOMElement $node
+	* @param \DOMXPath $xpathObject
 	* @param string $xpath Extracted XPATH, default ".//table/tr/td[1]/*"
 	*/
 	protected static function getFirstTableFirstCellMultiline($node, $xpathObject, $xpath = ".//table/tr/td[1]/*")
@@ -1802,7 +1802,7 @@ class ConnectorOrsr
 	* Explode supplied line into partial string and map them into supplied keys
 	* @param string $line String to explode
 	* @param array $keys Mapped keys
-	* @param array $separator Default comma [,]
+	* @param string $separator Default comma [,]
 	* @param string $skipRegex Skip row if contains ignored string (regular expression)
 	*/
 	protected static function line2array($line, $keys, $separator = ',', $skipRegex = '')
@@ -1921,7 +1921,7 @@ class _Array2XML
 	 * Convert an Array to XML
 	 * @param string $node_name - name of the root node to be converted
 	 * @param array $arr - aray to be converterd
-	 * @return DomDocument
+	 * @return \DomDocument
 	 */
 	protected static function &createXML($node_name, $arr=array())
 	{
@@ -1936,7 +1936,7 @@ class _Array2XML
 	 * Convert an Array to XML
 	 * @param string $node_name - name of the root node to be converted
 	 * @param array $arr - aray to be converterd
-	 * @return DOMNode
+	 * @return \DOMNode
 	 */
 	private static function &convert($node_name, $arr=array())
 	{
