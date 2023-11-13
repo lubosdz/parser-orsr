@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
 class ConnectorOrsrTest extends TestCase
 {
 	// short delay 0.5 sec after request
-	const DELAY_MSEC = 500000;
+	//const DELAY_MSEC = 500000;
 
 	public function testSearchCompanies()
 	{
@@ -26,7 +26,7 @@ class ConnectorOrsrTest extends TestCase
 		*/
 		$data = $connector->findByObchodneMeno('Matador');
 		$this->assertTrue($data && is_array($data) && false !== stripos(key($data), 'Matador'));
-		usleep(self::DELAY_MSEC);
+		//usleep(self::DELAY_MSEC);
 		$connector->resetOutput();
 
 		/**
@@ -40,7 +40,7 @@ class ConnectorOrsrTest extends TestCase
 		*/
 		$data = $connector->findByPriezviskoMeno('novák', 'peter');
 		$this->assertTrue($data && is_array($data) && false !== mb_stripos(key($data), 'novák', 0, 'utf-8') && false !== stripos(key($data), 'peter'));
-		usleep(self::DELAY_MSEC);
+		//usleep(self::DELAY_MSEC);
 		$connector->resetOutput();
 
 		/**
@@ -49,7 +49,7 @@ class ConnectorOrsrTest extends TestCase
 		*/
 		$data = $connector->findByICO('36 294 268'); // ICO = 8 digits, autostrip spaces
 		$this->assertTrue($data && is_array($data) && false !== stripos(key($data), 'Matador'));
-		usleep(self::DELAY_MSEC);
+		//usleep(self::DELAY_MSEC);
 		$connector->resetOutput();
 	}
 
@@ -94,7 +94,7 @@ class ConnectorOrsrTest extends TestCase
 		// since 01/06/2023 (1.0.9) - check typ sudu
 		$this->assertTrue(!empty($data['typ_sudu']) && ConnectorOrsr::TYP_SUDU_OKRESNY == $data['typ_sudu']);
 
-		usleep(self::DELAY_MSEC);
+		//usleep(self::DELAY_MSEC);
 		$connector->resetOutput();
 
 		// find company by company name
@@ -107,7 +107,12 @@ class ConnectorOrsrTest extends TestCase
 
 		// since 01/06/2023 (1.0.9) - check typ sudu
 		$this->assertTrue(!empty($data['typ_sudu']) && ConnectorOrsr::TYP_SUDU_MESTSKY == $data['typ_sudu']);
-		usleep(self::DELAY_MSEC);
+		//usleep(self::DELAY_MSEC);
+
+		// since 13/11/2023 (1.1.0) - multiple ICO - vrati platny zaznam "Test s.r.o." namiesto odstupeneho spisu "E-Energy, s. r. o."
+		$data = $connector->getDetailByICO('45281025');
+		$this->assertTrue(!empty($data['obchodne_meno']) && false !== stripos($data['obchodne_meno'], 'TEST '));
+		$this->assertTrue(!empty($data['adresa']['street']) && false !== stripos($data['adresa']['street'], 'Textiln'));
 	}
 
 }

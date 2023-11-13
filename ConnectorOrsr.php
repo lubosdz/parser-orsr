@@ -3,7 +3,7 @@
 * Parser pre vypis z obchodneho registra SR
 * Lookup service for Slovak commercial register (www.orsr.sk)
 *
-* Version 1.0.9 (released 02.06.2023)
+* Version 1.1.0 (released 13.11.2023)
 * (c) 2015 - 2023 lubosdz@gmail.com
 *
 * ------------------------------------------------------------------
@@ -97,6 +97,12 @@ class ConnectorOrsr
 	/** @var int The number of seconds to cut off request if server not responding, default 60 as per [default_socket_timeout] */
 	public $urlTimeoutSecs = 5;
 
+	/** @var int The number of milliseconds between two consecutive requests to ORSR to prevent rate limit ban */
+	public $msecDelayFetchUrl = 500;
+
+	/** @var int After how many requests to ORSR should apply delay to prevent rate limit ban */
+	public $delayAfterRequestCount = 3;
+
 	#################################################
 
 	/** @var integer Execution start time */
@@ -127,6 +133,13 @@ class ConnectorOrsr
 			}
 		}
 
+		$this->delayAfterRequestCount = max(0, intval($this->delayAfterRequestCount));
+
+		$this->urlTimeoutSecs = intval($this->urlTimeoutSecs);
+		if ($this->urlTimeoutSecs < 0 || $this->urlTimeoutSecs > 60) {
+			$this->urlTimeoutSecs = 5; // default 5 secs
+		}
+
 		$this->ts_start = microtime(true);
 	}
 
@@ -136,22 +149,16 @@ class ConnectorOrsr
 	*/
 	protected function loadUrl($url)
 	{
-		/*
-		static $cntRequests = 0;
+		if ($this->delayAfterRequestCount > 0) {
 
-		if($cntRequests && 0 == ($cntRequests % 3)){
-			// ORSR.sk may randomly reject frequent requests, some rules apply
-			// wait 1 sec every 3 requests
-			sleep(1);
-		}
+			static $cntRequests = 0;
 
-		++$cntRequests;
-		*/
+			if ($cntRequests && 0 == ($cntRequests % $this->delayAfterRequestCount)) {
+				// ORSR.sk may reject too frequent requests according to rate limits
+				$this->msleep();
+			}
 
-		$this->urlTimeoutSecs = intval($this->urlTimeoutSecs);
-
-		if ($this->urlTimeoutSecs < 0 || $this->urlTimeoutSecs > 60) {
-			$this->urlTimeoutSecs = 5;
+			++$cntRequests;
 		}
 
 		$ctx = stream_context_create([
@@ -161,6 +168,29 @@ class ConnectorOrsr
 		]);
 
 		return file_get_contents($url, false, $ctx);
+	}
+
+	/**
+	* Delay execution in msec
+	* @param int $msec e.g. 500 = 0.5 sec
+	*/
+	protected function msleep($msec = 0)
+	{
+		if (!$msec) {
+			$msec = $this->msecDelayFetchUrl;
+		}
+
+		$msec = max(0, intval($msec));
+
+		if ($msec >= 1000) {
+			$secs = min(5, intval($msec/1000));
+			if ($secs > 0) {
+				sleep($secs);
+			}
+		} elseif ($msec > 0){
+			$nanosec = $msec * 1000;
+			usleep($nanosec); // values over 1 mil. may not be supported on some systems
+		}
 	}
 
 	/**
@@ -342,8 +372,9 @@ class ConnectorOrsr
 	* @param int $id Company database identifier, e.g. 19456
 	* @param int $sid ID 0 - 8, prislusny sud/judikatura (jurisdiction district ID)
 	* @param int $p 0|1 Typ vypisu, default 0 = aktualny, 1 - uplny (vratane historickych zrusenych zaznamov)
+	* @param bool $onlyHtml If true return only fetched HTML, dont parse into attributes
 	*/
-	public function getDetailById($id, $sid, $p = 0)
+	public function getDetailById($id, $sid, $p = 0, $onlyHtml = false)
 	{
 		$id = intval($id);
 		if($id < 1){
@@ -370,6 +401,10 @@ class ConnectorOrsr
 			throw new \Exception('Failed loading data.');
 		}
 
+		if($onlyHtml){
+			return $html;
+		}
+
 		$this->data = self::extractDetail($html);
 
 		return $this->getOutput();
@@ -378,8 +413,9 @@ class ConnectorOrsr
 	/**
 	* Fetch company page from ORSR and return parsed data
 	* @param string $link Partial link to fetch, e.g. vypis.asp?ID=54190&SID=7&P=0
+	* @param bool $onlyHtml If true return only fetched HTML, dont parse into attributes
 	*/
-	public function getDetailByPartialLink($link)
+	public function getDetailByPartialLink($link, $onlyHtml = false)
 	{
 		$data = [];
 
@@ -391,7 +427,7 @@ class ConnectorOrsr
 			parse_str($link, $params);
 
 			if(isset($params['ID'], $params['SID'], $params['P'])){
-				$data = $this->getDetailById($params['ID'], $params['SID'], $params['P']);
+				$data = $this->getDetailById($params['ID'], $params['SID'], $params['P'], $onlyHtml);
 			}
 		}
 
@@ -462,9 +498,10 @@ class ConnectorOrsr
 	/**
 	* Looup by subject ICO & return instantly company/subject details
 	* @param string $ico Company ID (8 digits code)
+	* @param bool $onlyHtml If true return only fetched HTML, dont parse into attributes
 	* @return array Company / subject details
 	*/
-	public function getDetailByICO($ico)
+	public function getDetailByICO($ico, $onlyHtml = false)
 	{
 		$ico = preg_replace('/[^\d]/', '', $ico);
 		if(strlen($ico) != 8){
@@ -488,11 +525,30 @@ class ConnectorOrsr
 		}
 
 		// lookup by ICO always finds max. 1 record
-		$link = $this->handleFindResponse($html);
+		$links = $this->handleFindResponse($html);
 
-		if($link && is_array($link)){
-			$link = current($link);
-			$this->data = $this->getDetailByPartialLink($link);
+		if ($links && is_array($links)) {
+			while ($link = array_shift($links)) {
+				$html = $this->getDetailByPartialLink($link, true);
+				// preverime, ci existuje viac liniek pre rovnake ICO,
+				// platna je linka, kde vypis neobsahuje "spis postupeny z dovodu miestnej neprislusnosti"
+				// note: we use single-byte stripos() to avoid unnecessary codepage conversion win-1250 -> utf-8
+				if(!$links || false === stripos($html, 'vodu miestnej nepr')){
+					// jedina linka alebo platny spis
+					break;
+				}
+				// short delay before next request - wait at least 0.5 sec
+				//usleep(500000);
+				$this->msleep();
+			}
+
+			if ($onlyHtml) {
+				// special cases - e.g. prefetch for later parsing
+				return $html;
+			}
+
+			// extract structured data
+			$this->data = self::extractDetail($html);
 		}
 
 		return $this->data;

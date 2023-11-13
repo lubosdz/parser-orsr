@@ -237,7 +237,12 @@ $("#company_ico").on("keyup", function(){
 
 
 Changelog
----------
+=========
+
+1.1.0 - 13.11.2023
+------------------
+* Fix - vrátime platný spis pre viac platných záznamov / subjektov s rovnakým IČO (getDetailByICO - #10)
+* Enh - support requests delay options (msecDelayFetchUrl, delayAfterRequestCount) to prevent from rate limit ban
 
 1.0.9 - 02.06.2023
 ------------------
