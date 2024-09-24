@@ -30,11 +30,11 @@ Inštalácia, dependencie, demo
 
 * Kód je obsiahnutý v jedinom PHP súbore `ConnectorOrsr.php`.
 * Potrebné PHP rozšírenia: `tidy`, `mbstring`, `dom`, `iconv`, `json`.
-* Demo: [http://www.synet.sk/php/sk/360-ORSR-API-rozhranie-obchodny-register](http://www.synet.sk/php/sk/360-ORSR-API-rozhranie-obchodny-register)
+* Demo: [https://synet.sk/blog/php/360-ORSR-API-rozhranie-obchodny-register](https://synet.sk/blog/php/360-ORSR-API-rozhranie-obchodny-register)
 * install manually or via composer:
 
 ```bash
-$ composer require "lubosdz/parser-orsr" : "~1.0.0"
+$ composer require "lubosdz/parser-orsr" : "~1.0.9"
 ```
 
 Použitie / API / Usage
