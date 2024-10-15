@@ -1,6 +1,6 @@
 {
 	"name": "lubosdz/parser-orsr",
-	"description": "Parser Obchodneho registra SR - www.orsr.sk. (Parser for Business Directory of Slovak Republic)",
+	"description": "Parser Obchodneho registra SR - https://www.orsr.sk/ (Parser for Business Directory of Slovak Republic)",
 	"license": "BSD-3-Clause",
 	"keywords": ["orsr.sk API parser", "Obchodny register SR", "slovak business directory", "orsr.sk"],
 	"support": {
@@ -16,6 +16,13 @@
 		"php": ">=5.5"
 	},
 	"autoload": {
-		"psr-4": {"lubosdz\\parserOrsr\\": ""}
+		"psr-4": {
+			"lubosdz\\parserOrsr\\": "",
+			"lubosdz\\": ""
+		}
+	},
+	"scripts": {
+		"post-update-cmd": "lubosdz\\Upgrade::notes",
+		"post-install-cmd": "lubosdz\\Upgrade::notes"
 	}
 }
