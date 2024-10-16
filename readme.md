@@ -16,6 +16,15 @@ Licencia
 
 Kód obsiahnutý v súbore `ConnectorOrsr.php` je voľne distribuovateľný a modifikovateľný na súkromné ako aj komerčné účely.
 
+Poznámka
+========
+
+> Obchodný register SR obsahuje len časť subjektov v podnikateľskom prostredí (cca 480 tis.).
+> Neobsahuje údaje napr. o živnostníkoch alebo neziskových organizáciách.
+> Tieto sa nachádzajú v ďalších verejne prístupných databázach (živnostenský register,
+> register účtovných závierok, register právnických osôb). Pokiaľ hľadáte profesionálne
+> riešenie s prístupom ku všetkých 1.7 mil. subjektom pozrite projekt [https://bizdata.sk](https://bizdata.sk).
+
 
 Tipy na správne použitie
 ========================
@@ -34,7 +43,7 @@ Inštalácia, dependencie, demo
 * install manually or via composer:
 
 ```bash
-$ composer require "lubosdz/parser-orsr" : "~1.0.9"
+$ composer require "lubosdz/parser-orsr" : "~1.1.0"
 ```
 
 Použitie / API / Usage
@@ -63,8 +72,9 @@ Podporné metódy:
 ----------------
 
 ```
-// zapneme priamy výstup údajov do prehliadača + local file caching
+// zapneme priamy výstup údajov do prehliadača + local file caching into temp directory
 $orsr->debug = true;
+$orsr->dirCache = '/writable/temp/';
 
 // nastavenie formátu výstupu
 $orsr->setOutputFormat('xml'); // xml|json|empty string
@@ -145,7 +155,7 @@ $detail : Array
 	[konanie_menom_spolocnosti] => Vedúci organizačnej zložky je oprávnený robiť právne úkony v záležitostiach týkajúcich sa organizačnej zložky. Vedúci organizačnej zložky koná a podpisuje tak, že k napísanému alebo vytlačenému označeniu organizačnej zložky pripojí svoj podpis s uvedením svojej funkcie. Zakladateľ môže stanoviť interné pokyny, ktorými obmedzí konanie vedúceho organizačnej zložky.
 	[dalsie_skutocnosti] => Spoločnosť bola založená zakladateľskou listinou o založení organizačnej zložky vo forme notárskej zápisnice N 229/2008, Nz 41147/2008 zo dňa 1.10.2008 v zmysle príslušných ustanovení z. č. 513/1991 Zb. Obchodný zákonník.
 	[datum_aktualizacie] => 07.11.2019
-	[datum_vypisu] => 09.11.2019
+	[datum_vypisu] => 31.12.2023
 )
 ```
 
@@ -238,6 +248,11 @@ $("#company_ico").on("keyup", function(){
 
 Changelog
 =========
+
+1.1.1 - 16.10.2024
+------------------
+* ENH - Extract Kontrolná komisia
+* FIX - multiple minor parsing improvements - hodnota akcií, štatutári, neštandardné poznámky pri mene osôb apod.
 
 1.1.0 - 13.11.2023
 ------------------

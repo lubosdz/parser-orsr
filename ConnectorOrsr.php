@@ -3,20 +3,26 @@
 * Parser pre vypis z obchodneho registra SR
 * Lookup service for Slovak commercial register (www.orsr.sk)
 *
-* Version 1.1.0 (released 13.11.2023)
-* (c) 2015 - 2023 lubosdz@gmail.com
+* Version 1.1.1 (released 16.10.2024)
+* (c) 2015 - 2024 lubosdz@gmail.com
 *
 * ------------------------------------------------------------------
 * Disclaimer / Prehlásenie:
 * Kód poskytnutý je bez záruky a môže kedykoľvek prestať fungovať.
 * Jeho funkčnosť je striktne naviazaná na generovanú štruktúru HTML elementov.
 * Autor nie je povinný udržiavať kód aktuálny a funkčný, ani neposkytuje ku nemu žiadnu podporu.
-* Kód bol sprístupnený na základe mnohých žiadostí vývojárov finančno-ekonomických aplikácií a (bohužiaľ) neschopnosti
-* úradných inštitúcií sprístupniť oficiálny prístup do verejnej databázy subjektov pomocou štandardného API rozhrania.
+* Kód bol sprístupnený na základe početných žiadostí vývojárov finančno-ekonomických aplikácií
+* a neschopnosti štátnych inštitúcií poskytnúť kvalitné a zjednotené údaje o podnikateľských subjektoch.
 * Autor nezodpovedá za nesprávne použitie kódu.
 * ------------------------------------------------------------------
-*
-* Source:
+* Poznámka / Note:
+* Obchodný register SR obsahuje len časť subjektov v podnikateľskom prostredí (cca 480 tis.).
+* Neobsahuje údaje napr. o živnostníkoch alebo neziskových organizáciách.
+* Tieto sa nachádzajú v ďalších verejne prístupných databázach (živnostenský register,
+* register účtovných závierok, register právnických osôb). Pokiaľ hľadáte profesionálne
+* riešenie s prístupom ku všetkých 1.7 mil. subjektom pozrite projekt https://bizdata.sk.
+* ------------------------------------------------------------------
+* Github repo:
 * https://github.com/lubosdz/parser-orsr
 * ------------------------------------------------------------------
 *
@@ -60,7 +66,7 @@ namespace lubosdz\parserOrsr;
 */
 class ConnectorOrsr
 {
-    const API_VERSION = '1.0.9';
+    const API_VERSION = '1.1.1';
 
     /** @var string Endpoint URL */
     const URL_BASE = 'https://www.orsr.sk';
@@ -69,7 +75,7 @@ class ConnectorOrsr
     const EXCH_RATE_SKK_EUR = 30.126;
 
     /** @var string Regex date pattern which accepts "1.2.2024" or "1. 2. 2024" or "01.02.2024" */
-    CONST REGEX_DATE = '(\d{1,2}\. ?\d{1,2}\. ?\d{4})';
+    const REGEX_DATE = '(\d{1,2}\. ?\d{1,2}\. ?\d{4})';
 
     const
         // person types
@@ -728,11 +734,12 @@ class ConnectorOrsr
             'Správca konkurznej podstaty'   => 'extract_spravcaKonkurznejPodstaty',
             'Zastupovanie'                  => 'extract_zastupovanie',
             'Vedúci'                        => 'extract_vedúci_org_zlozky',
-            'Konanie menom spoločnosti'     => 'extract_konanie',
+            'Konanie'                       => 'extract_konanie',
             'Základné imanie'               => 'extract_zakladneImanie',
             'členský vklad'                 => 'extract_zakladnyClenskyVklad',
             'Akcie'                         => 'extract_akcie',
             'Dozorná rada'                  => 'extract_dozornaRada',
+            'Kontrolná komisia'             => 'extract_kontrolnaKomisia',
             'Ďalšie právne skutočnosti'     => 'extract_dalsieSkutocnosti',
             'Zlúčenie, splynutie'           => 'extract_zlucenieSplynutie',
             'Právny nástupca'               => 'extract_pravnyNastupca',
@@ -1168,12 +1175,12 @@ class ConnectorOrsr
                 $parts['name'] = self::trimInsideChars($parts['name']);
 
                 if(preg_match('/.+( zast\.)/iu', $parts['name'], $match)){
-                    // RUZ 160108 - Nestlé S.A. Nestlé A.G. Nestlé Ltd. zast. Ing. Darinou Matyášovou Sládkovičova 10 Prievidza
+                    // Nestlé S.A. Nestlé A.G. Nestlé Ltd. zast. Ing. Darinou Matyášovou Sládkovičova 10 Prievidza
                     list($parts['name'], $parts['zastupena']) = explode($match[1], $parts['name']);
                     $parts['name'] = trim($parts['name'], ' ,;-:');
                     $parts['zastupena'] = trim($parts['zastupena'], ' ,;-:');
                 }elseif(preg_match('/.+( zapísan[á|ý|é] v|zapísanej v)/iu', $parts['name'], $match)){
-                    // RUZ 216515 - HDO Druckguss-und Oberflächentechnik GmbH zapísaná (zapisana|zapisanej..) v obchodnom registri vedenom okresným súdom / Amtsgericht / Paderborn pod číslom HRB 3218
+                    // HDO Druckguss-und Oberflächentechnik GmbH zapísaná (zapisana|zapisanej..) v obchodnom registri vedenom okresným súdom / Amtsgericht / Paderborn pod číslom HRB 3218
                     // odsekneme len neplatnu cast za menom, ostatne neriesime, extra info za menom je uz parsed napr. v zozname spolocnikov
                     list($parts['name']) = explode($match[1], $parts['name']);
                     $parts['name'] = trim($parts['name'], ' ,;-:');
@@ -1262,12 +1269,52 @@ class ConnectorOrsr
                     }
                 }else if($type){
                     // add item & parse row - pozor na poradie, niekedy je uvedena len obec (pod menom)
-                    $parts = self::line2array($text, ['name', 'street', 'city', 'country', 'since']);
+                    // typicky: "Ing. Milan Hluzák, M. Benku 21/9, Prievidza 971 01, Vznik funkcie: 04.03.2014"
+                    // anomalia: "Jiří Bejšovec - vznik funkcie: 17.01.2002, Zákostelní 5/666, Praha 9, Česká republika"
+                    $vznikFunkcie = $zanikFunkcie = $extraInfo = '';
 
-                    $tmp = empty($parts['name']) ? [] : self::line2array($parts['name'], ['name', 'function'], '-');
-                    if(!empty($tmp['function'])){
-                        $parts['name'] = $tmp['name'];
-                        $parts['function'] = $tmp['function'];
+                    // najprv preverime zastupcu
+                    if(preg_match('/\b(zastúpen[^:]+|zast.[^:]*):/', $text, $match)){
+                        // e.g. "ROLSED spol. s r.o. zast.: Jaroslav Sedlák, - obchodný riaditeľ, Haanova 50, Bratislava 851 04"
+                        list($text, $extraInfo) = explode($match[0], $text);
+                        $extraInfo = trim($match[0]).' '.trim($extraInfo, ' ,;-');
+                        $extraInfo = str_replace(', -', ' -', $extraInfo);
+                    }
+
+                    if(preg_match('/Vznik funkcie:\s*'.self::REGEX_DATE.'/iu', $text, $match)){
+                        $vznikFunkcie = trim($match[1], ' ,;-');
+                        $text = str_replace($match[0], ' ', $text);
+                        $text = trim($text, ' ,;-');
+                    }
+
+                    if(preg_match('/Skončenie funkcie:\s*'.self::REGEX_DATE.'/iu', $text, $match)){
+                        $zanikFunkcie = trim($match[1], ' ,;-');
+                        $text = str_replace($match[0], ' ', $text);
+                        $text = trim($text, ' ,;-');
+                    }
+
+                    if(1 == substr_count($text, ',')){
+                        $parts = self::line2array($text, ['name', 'city']);
+                    }else{
+                        $parts = self::line2array($text, ['name', 'street', 'city', 'country']);
+                    }
+
+                    if(preg_match('/\b(nar[^:]+):/iu', $parts['name'], $match)){
+                        // fix "PhDr. Mária Liptáková, nar.: 13.8.1961"
+                        $parts['name'] = explode($match[1], $parts['name'])[0];
+                    }
+                    $parts['name'] = trim($parts['name'], ' ,;-:(');
+
+                    // split name - function, e.g. "Ing. Václav Klein - predseda"
+                    $tmp = (false === strpos($parts['name'], ' - '))  ? [] : self::line2array($parts['name'], ['name', 'function'], ' - ');
+                    if(!empty($tmp['name']) && str_word_count($tmp['name']) > 1){
+                        // fix: the name must be at least 2 words, e.g. ignore "Peter - Alfred Wippermann"
+                        if(!empty($tmp['function'])){
+                            $parts['name'] = $tmp['name'];
+                            $parts['function'] = self::trimInsideChars($tmp['function']);
+                        }else{
+                            $parts['name'] = $tmp['name']; // removed dash e.g. Jiří Bejšovec - vznik funkcie: 17.01.2002
+                        }
                     }
 
                     if(empty($parts['city']) && empty($parts['country']) && !empty($parts['street'])){
@@ -1288,19 +1335,21 @@ class ConnectorOrsr
                         $parts['city'] = $tmp['city'];
                     }
 
-                    if(!empty($parts['since']) && false !== strpos($parts['since'], ':')){
-                        // 4 records with country
-                        list(, $parts['since']) = explode(':', $parts['since']);
-                        $parts['since'] = trim($parts['since']);
-                    }elseif(!empty($parts['country']) && false !== strpos($parts['country'], ':')){
-                        // 3 records without country
-                        list(, $parts['since']) = explode(':', $parts['country']);
-                        $parts['since'] = trim($parts['since']);
+                    if(empty($parts['country'])){
                         unset($parts['country']);
                     }
 
-                    if(empty($parts['country'])){
-                        unset($parts['country']);
+                    if(!empty($vznikFunkcie)){
+                        $parts['vznik_funkcie'] = $vznikFunkcie;
+                        // just backwards compatability - deprecated, use "vznik_funkcie"
+                        $parts['since'] = $vznikFunkcie;
+                    }
+                    if(!empty($zanikFunkcie)){
+                        $parts['zanik_funkcie'] = $zanikFunkcie;
+                    }
+
+                    if($extraInfo){
+                        $parts['extraInfo'] = $extraInfo;
                     }
 
                     // $type = e.g. "konatelia"
@@ -1358,7 +1407,7 @@ class ConnectorOrsr
         ]];
         // zistime datum vyhlasenie konkurzu v "Dátum vyhlásenia konkurzu: 24.2.2012 Uznesením Okresného súdu ..."
         if($out && preg_match('/konkurzu:\s*'.self::REGEX_DATE.'/ui', $txt, $match)){
-            $out['konkurz']['since'] = trim($match[1]);
+            $out['konkurz']['since'] = preg_replace('/\s+/u', '', $match[1]); // 10. 10. 2018 -> 10.10.2018
         }
         return $out;
     }
@@ -1388,12 +1437,20 @@ class ConnectorOrsr
             if(!empty($parts['since']) && false !== strpos($parts['since'], ':')){
                 // 4 records with country
                 list(, $parts['since']) = explode(':', $parts['since']);
-                $parts['since'] = trim($parts['since']);
+                $parts['since'] = $parts['vznik_funkcie'] = trim($parts['since']);
             }elseif(!empty($parts['country']) && false !== strpos($parts['country'], ':')){
                 // 3 records without country
                 list(, $parts['since']) = explode(':', $parts['country']);
-                $parts['since'] = trim($parts['since']);
+                $parts['since'] = $parts['vznik_funkcie'] = trim($parts['since']);
                 unset($parts['country']);
+            }
+
+            if(!empty($parts['vznik_funkcie']) && false !== strpos($parts['vznik_funkcie'], ' Skon')){
+                list($parts['vznik_funkcie'], $tmp) = explode(' Skon', $parts['vznik_funkcie']);
+                $parts['vznik_funkcie'] = trim($parts['vznik_funkcie'], ' ,;.-');
+                if(preg_match('/\bfunkcie:\s*'.self::REGEX_DATE.'/iu', $tmp, $match)){
+                    $parts['zanik_funkcie'] = trim($match[1], ' ,;.-');
+                }
             }
 
             $tmp = empty($parts['street']) ? [] : self::streetAndNumber($parts['street']);
@@ -1474,7 +1531,12 @@ class ConnectorOrsr
         }
         foreach($vklad as $row){
             $row = self::trimSpaceInNumber($row);
-            $out[] = self::trimMulti($row);
+            $row = self::trimMulti($row);
+            if(preg_match('/\d+,\d+/u', $row, $match)){
+                $fixed = str_replace(',', '.', $match[0]); // convert to valid numeric format
+                $row = str_replace($match[0], $fixed, $row);
+            }
+            $out[] = $row;
         }
         return ['zakladny_clensky_vklad' => $out];
     }
@@ -1529,20 +1591,42 @@ class ConnectorOrsr
         if($rada->length){
             foreach($rada as $person){
                 $line = self::getFirstTableFirstCellMultiline($person, $xpath, ".//tr/td[1]/*");
+                $line = trim($line, ' ,;-');
 
                 if(substr_count($line, ',') >= 4){
                     $parts = self::line2array($line, ['name', 'street', 'city', 'country', 'since']);
                 }else{
                     $parts = self::line2array($line, ['name', 'street', 'city', 'since']);
-                    $parts['country'] = 'Slovenská republika';
                 }
 
-                if(!empty($parts['since']) && false !== strpos($parts['since'], ':')){
-                    list(, $parts['since']) = explode(':', $parts['since']);
-                    $parts['since'] = trim($parts['since']);
+                if(!empty($parts['since'])){
+                    // "Vznik funkcie: 30.06.2017"
+                    // "Vznik funkcie: 08.04.2004 Skončenie funkcie: 29.05.2012"
+                    $tmp = $parts['since'];
+                    if(preg_match('/Vznik funkcie:\s*'.self::REGEX_DATE.'/iu', $tmp, $match)){
+                        $parts['vznik_funkcie'] = trim($match[1], ' ,;-');
+                        $parts['since'] = $parts['vznik_funkcie']; // backwards compatability
+                    }
+                    if(preg_match('/Skončenie funkcie:\s*'.self::REGEX_DATE.'/iu', $tmp, $match)){
+                        $parts['zanik_funkcie'] = trim($match[1], ' ,;-');
+                    }
+                    // fix "Dkfm. Wolf-Dietger Strobl, Anton Jahn-Gasse 9, Giesshübl 023 72, Rakúsko"
+                    if(!preg_match('/\d+/u', $tmp, $match)){
+                        // posledna cast moze byt aj krajine, ak neobsahuje cislicu
+                        $parts['country'] = trim($tmp, ' .,;-');
+                    }
                 }
 
-                $tmp = self::line2array($parts['name'], ['name', 'function'], '-');
+                // fix some strings near the name ..
+                if(preg_match('/\b(social[^:]+):/iu', $parts['name'], $match)){
+                    // fix "Dr. Cvetko Nikolič, Social Security: 523-90-2845 - predseda"
+                    $parts['name'] = explode($match[1], $parts['name'])[0];
+                    $parts['name'] = trim($parts['name'], ' ,;-:');
+                }
+
+                // e.g. "Ing. Milan Slanina - Člen predstavenstva"
+                // pozor - "Dkfm. Wolf-Dietger Strobl", pomlcka moze byt aj v mene
+                $tmp = self::line2array($parts['name'], ['name', 'function'], ' - ');
                 if(!empty($tmp['function'])){
                     $parts['name'] = $tmp['name'];
                     $parts['function'] = $tmp['function'];
@@ -1550,7 +1634,7 @@ class ConnectorOrsr
                     $parts['function'] = '';
                 }
 
-                $tmp = self::streetAndNumber($parts['street']);
+                $tmp = empty($parts['street']) ? '' : self::streetAndNumber($parts['street']);
                 if(!empty($tmp['number'])){
                     $parts['street'] = $tmp['street'];
                     $parts['number'] = $tmp['number'];
@@ -1558,7 +1642,7 @@ class ConnectorOrsr
                     $parts['number'] = '';
                 }
 
-                $tmp = self::cityAndZip($parts['city']);
+                $tmp = empty($parts['city']) ? '' : self::cityAndZip($parts['city']);
                 if(!empty($tmp['zip'])){
                     $parts['zip'] = $tmp['zip'];
                     $parts['city'] = $tmp['city'];
@@ -1566,7 +1650,6 @@ class ConnectorOrsr
                     $parts['zip'] = '';
                 }
 
-                //ksort($parts);
                 $out[] = $parts;
             }
         }
@@ -1574,6 +1657,63 @@ class ConnectorOrsr
         if($out){
             return ['dozorna_rada' => $out];
         }
+    }
+
+    protected function extract_kontrolnaKomisia($tag, $node, $xpath)
+    {
+        $out = [];
+        $rada = $xpath->query(".//table", $node);
+        if($rada->length){
+            foreach($rada as $person){
+                $line = self::getFirstTableFirstCellMultiline($person, $xpath, ".//tr/td[1]/*");
+                $line = trim($line, ' ,;-');
+
+                if(substr_count($line, ',') >= 4){
+                    $parts = self::line2array($line, ['name', 'street', 'city', 'country', 'since']);
+                }else{
+                    $parts = self::line2array($line, ['name', 'street', 'city', 'since']);
+                }
+
+                if(false !== strpos($parts['name'], ' - ')){
+                    // extract function from "Miroslav Gavorčík - člen kontrolnej funkcie"
+                    list($parts['name'], $parts['function']) = explode(' - ', $parts['name']);
+                    $parts = array_map('trim', $parts);
+                }
+
+                $tmp = empty($parts['street']) ? '' : self::streetAndNumber($parts['street']);
+                if(!empty($tmp['number'])){
+                    $parts['street'] = $tmp['street'];
+                    $parts['number'] = $tmp['number'];
+                }else{
+                    $parts['number'] = '';
+                }
+
+                $tmp = empty($parts['city']) ? '' : self::cityAndZip($parts['city']);
+                if(!empty($tmp['zip'])){
+                    $parts['zip'] = $tmp['zip'];
+                    $parts['city'] = $tmp['city'];
+                }else{
+                    $parts['zip'] = '';
+                }
+
+                if(!empty($parts['since'])){
+                    // "Vznik funkcie: 30.06.2017"
+                    // "Vznik funkcie: 08.04.2004 Skončenie funkcie: 29.05.2012"
+                    $tmp = $parts['since'];
+                    if(preg_match('/Vznik funkcie:\s*'.self::REGEX_DATE.'/iu', $tmp, $match)){
+                        $parts['vznik_funkcie'] = trim($match[1], ' ,;-');
+                    }
+                    if(preg_match('/Skončenie funkcie:\s*'.self::REGEX_DATE.'/iu', $tmp, $match)){
+                        $parts['zanik_funkcie'] = trim($match[1], ' ,;-');
+                    }
+                }
+
+                unset($parts['since']);
+                $out[] = $parts;
+            }
+        }
+
+        return ['kontrolna_komisia' => $out];
     }
 
     protected function extract_dalsieSkutocnosti($tag, $node, $xpath)
