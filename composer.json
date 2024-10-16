@@ -17,12 +17,7 @@
 	},
 	"autoload": {
 		"psr-4": {
-			"lubosdz\\parserOrsr\\": "",
-			"lubosdz\\": ""
+			"lubosdz\\parserOrsr\\": ""
 		}
-	},
-	"scripts": {
-		"post-update-cmd": "lubosdz\\Upgrade::notes",
-		"post-install-cmd": "lubosdz\\Upgrade::notes"
 	}
 }

@@ -16,14 +16,21 @@ Licencia
 
 Kód obsiahnutý v súbore `ConnectorOrsr.php` je voľne distribuovateľný a modifikovateľný na súkromné ako aj komerčné účely.
 
-Poznámka
-========
+
+Poznámka / Note
+===============
 
 > Obchodný register SR obsahuje len časť subjektov v podnikateľskom prostredí (cca 480 tis.).
 > Neobsahuje údaje napr. o živnostníkoch alebo neziskových organizáciách.
 > Tieto sa nachádzajú v ďalších verejne prístupných databázach (živnostenský register,
 > register účtovných závierok, register právnických osôb). Pokiaľ hľadáte profesionálne
-> riešenie s prístupom ku všetkých 1.7 mil. subjektom pozrite projekt [https://bizdata.sk](https://bizdata.sk).
+> riešenie s prístupom ku všetkých 1.7 mil. subjektom pozrite [https://bizdata.sk](https://bizdata.sk).
+>
+> Parser for Business Directory of Slovak Republic allows accessing cca 480k companies.
+> However, it does not provide access to ie. enterpreneurs or unprofitable organizations,
+> since these are not contained within the Business Directory.
+> If you are looking for a professional solution with access to all 1.7 mil. of entities,
+> take a look at [https://bizdata.sk](https://bizdata.sk).
 
 
 Tipy na správne použitie
@@ -74,7 +81,7 @@ Podporné metódy:
 ```
 // zapneme priamy výstup údajov do prehliadača + local file caching into temp directory
 $orsr->debug = true;
-$orsr->dirCache = '/writable/temp/';
+$orsr->dirCache = '/writable/temp/'; // debugging will attempt to save fetched page
 
 // nastavenie formátu výstupu
 $orsr->setOutputFormat('xml'); // xml|json|empty string
@@ -99,7 +106,6 @@ $list : array (
   'MATADORFIX s.r.o.' => 'vypis.asp?ID=8202&SID=2&P=0',
   'MATADOR-TOYS, s. r. o.' => 'vypis.asp?ID=313211&SID=6&P=0',
 )
-
 
 
 $detail = $orsr->getDetailById(1319, 9); // z linky 'vypis.asp?ID=1319&SID=9&P=0'
