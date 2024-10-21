@@ -3,7 +3,7 @@
  * Parser pre vypis z obchodneho registra SR
  * Lookup service for Slovak commercial register (www.orsr.sk)
  *
- * Version 1.1.1 (released 16.10.2024)
+ * Version 1.1.2 (released 21.10.2024)
  * (c) 2015 - 2024 lubosdz@gmail.com
  *
  * ------------------------------------------------------------------
@@ -66,7 +66,7 @@ namespace lubosdz\parserOrsr;
  */
 class ConnectorOrsr
 {
-    const API_VERSION = '1.1.1';
+    const API_VERSION = '1.1.2';
 
     /** @var string Endpoint URL */
     const URL_BASE = 'https://www.orsr.sk';
