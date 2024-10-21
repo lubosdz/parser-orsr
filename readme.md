@@ -95,6 +95,7 @@ Príklad odpovede:
 ----------------
 
 ```
+// sample #1
 $list = $orsr->findByObchodneMeno('Matador');
 
 $list : array (
@@ -107,7 +108,7 @@ $list : array (
   'MATADOR-TOYS, s. r. o.' => 'vypis.asp?ID=313211&SID=6&P=0',
 )
 
-
+// sample #2
 $detail = $orsr->getDetailById(1319, 9); // z linky 'vypis.asp?ID=1319&SID=9&P=0'
 
 $detail : Array
@@ -234,7 +235,7 @@ $("#company_ico").on("keyup", function(){
 			alert("Zadajte len číslice 0-9.");
 		}else{
 			$.ajax({
-				url: "/orsr/find-detail-by-ico",
+				url: "/orsr/find-detail-by-ico", // implement your own OrsrController
 				data: {ico: ico},
 				success: function (response) {
 					if(response.ico != undefined && response.ico){
@@ -255,10 +256,15 @@ $("#company_ico").on("keyup", function(){
 Changelog
 =========
 
+1.1.2 - 21.10.2024
+------------------
+* ENH - store fetched source link (permalink) as attribute "srcUrl" along with extracted data
+* ENH - documentation improvements - see [demo](https://synet.sk/blog/php/360-ORSR-API-rozhranie-obchodny-register)
+
 1.1.1 - 16.10.2024
 ------------------
-* ENH - Extract Kontrolná komisia
-* FIX - multiple minor parsing improvements - hodnota akcií, štatutári, neštandardné poznámky pri mene osôb apod.
+* ENH - extract Kontrolná komisia
+* ENH - multiple minor parsing improvements - hodnota akcií, štatutári, neštandardné poznámky osobách apod.
 
 1.1.0 - 13.11.2023
 ------------------

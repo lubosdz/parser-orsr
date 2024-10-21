@@ -123,6 +123,9 @@ class ConnectorOrsr
     /** @var array Extracted data */
     protected $data = [];
 
+    /** @var string e.g. "ID=54190&SID=7&P=0" URL to source page, where data have been downloaded from, napr. zaznam firmy v ORSR */
+    protected $srcUrl;
+
     /** @var bool Semaphore to avoid double output, e.g. if matched 1 item (DIC, ICO) we instantly return detail */
     protected $outputSent = false;
 
@@ -212,6 +215,14 @@ class ConnectorOrsr
     }
 
     /**
+    * Return source URL link from which last data have been fetched
+    */
+    public function getSrcUrl()
+    {
+        return $this->srcUrl;
+    }
+
+    /**
      * Clear previosuly extracted data & semaphore that output has been already sent
      * Use e.g. to re-send request with the same instance
      */
@@ -219,6 +230,7 @@ class ConnectorOrsr
     {
         $this->outputSent = false;
         $this->data = [];
+        $this->srcUrl = null;
     }
 
     /**
@@ -363,6 +375,10 @@ class ConnectorOrsr
             ] + $this->data;
         }
 
+        if($this->srcUrl && empty($this->data['srcUrl'])){
+            $this->data['srcUrl'] = $this->srcUrl;
+        }
+
         $this->outputSent = true;
 
         if ($this->debug) {
@@ -397,18 +413,19 @@ class ConnectorOrsr
      * Fetch company page from ORSR and return parsed data
      * @param int $id Company database identifier, e.g. 19456
      * @param int $sid ID 0 - 8, prislusny sud/judikatura (jurisdiction district ID)
-     * @param int $p 0|1 Typ vypisu, default 0 = aktualny, 1 - uplny (vratane historickych zrusenych zaznamov)
+     * @param int $plny 0|1 Typ vypisu, default 0 = aktualny, 1 - uplny (vratane historickych zrusenych zaznamov)
      * @param bool $onlyHtml If true return only fetched HTML, dont parse into attributes
      */
-    public function getDetailById($id, $sid, $p = 0, $onlyHtml = false)
+    public function getDetailById($id, $sid, $plny = 0, $onlyHtml = false)
     {
         $id = intval($id);
         if ($id < 1) {
             throw new \Exception('Invalid company ID.');
         }
 
-        $hash = $id . '-' . $sid . '-' . $p;
-        $path = $this->dirCache . 'orsr-detail-' . $hash . '-raw.html';
+        $this->srcUrl = "vypis.asp?ID={$id}&SID={$sid}&P={$plny}"; // without repetitive "https://www.orsr.sk/"
+        $hash = $id . '-' . $sid . '-' . $plny;
+        $path = $this->dirCache . 'orsr-detail-' .$hash. '-raw.html';
 
         if ($this->debug && is_file($path) && filesize($path)) {
             $html = file_get_contents($path);
@@ -416,7 +433,7 @@ class ConnectorOrsr
             // ID + SID = jedinecny identifikator subjektu
             // SID (ID sudu dla kraja) = 1 .. 8 different companies :-(
             // P = 1 - uplny, otherwise 0 = aktualny
-            $url = self::URL_BASE . "/vypis.asp?ID={$id}&SID={$sid}&P={$p}";
+            $url = self::URL_BASE . "/{$this->srcUrl}";
             $html = $this->loadUrl($url);
             if ($html && $this->debug) {
                 file_put_contents($path, $html);
@@ -454,6 +471,9 @@ class ConnectorOrsr
 
             if (isset($params['ID'], $params['SID'], $params['P'])) {
                 $data = $this->getDetailById($params['ID'], $params['SID'], $params['P'], $onlyHtml);
+                if($data && is_array($data) && $this->srcUrl){
+                    $data['srcUrl'] = $this->srcUrl;
+                }
             }
         }
 
@@ -839,6 +859,11 @@ class ConnectorOrsr
                     }
                 }
             }
+        }
+
+        // add source ORSR link
+        if ($this->srcUrl) {
+            $this->data['srcUrl'] = $this->srcUrl;
         }
 
         // add meta data
