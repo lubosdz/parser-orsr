@@ -256,6 +256,11 @@ $("#company_ico").on("keyup", function(){
 Changelog
 =========
 
+1.1.4 - 18.08.2025
+------------------
+* ENH - properly detect valid item - may not contain "Deň výmazu:" (@romanmatyus)
+* use `preg_match()` rather than `stripos()` for searching single-byte HTML source string
+
 1.1.3 - 27.05.2025
 ------------------
 * ENH - properly detect valid item - not containing "Výpis je neaktuálny z dôvodu zmeny právnej formy"

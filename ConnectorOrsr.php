@@ -3,7 +3,7 @@
  * Parser pre vypis z obchodneho registra SR
  * Lookup service for Slovak commercial register (www.orsr.sk)
  *
- * Version 1.1.3 (released 27.05.2025)
+ * Version 1.1.4 (released 18.08.2025)
  * (c) 2015 - 2025 lubosdz@gmail.com
  *
  * ------------------------------------------------------------------
@@ -66,7 +66,7 @@ namespace lubosdz\parserOrsr;
  */
 class ConnectorOrsr
 {
-    const API_VERSION = '1.1.3';
+    const API_VERSION = '1.1.4';
 
     /** @var string Endpoint URL */
     const URL_BASE = 'https://www.orsr.sk';
@@ -576,12 +576,13 @@ class ConnectorOrsr
         if ($links && is_array($links)) {
             while ($link = array_shift($links)) {
                 $html = $this->getDetailByPartialLink($link, true);
-                // preverime, ci existuje viac liniek pre rovnake ICO,
+                // preverime, ci existuje viac liniek pre rovnake ICO
                 // platna je linka, kde vypis neobsahuje v zahlavi ziadny z textov:
                 //  - "Spis odstúpený na iný registrový súd z dôvodu miestnej nepríslušnosti"
                 //  - "Výpis je neaktuálny z dôvodu zmeny právnej formy"
-                // note: we use single-byte stripos() to avoid unnecessary codepage conversion win-1250 -> utf-8
-                if (!$links || (false === stripos($html, 'vodu miestnej nepr') && false === stripos($html, 'vodu zmeny pr'))) {
+                //  - nevyskytuje sa zaznam "Deň výmazu: dd.mm.rrrr" (napr. IČO 00681300)
+                // note: we use single-byte REGEX to avoid expensive codepage conversion from windows-1250 to utf-8
+                if (!$links || !preg_match('/(vodu miestnej nepr|vodu zmeny pr|mazu:)/i', $html)) {
                     // jedina linka alebo platny spis
                     break;
                 }

@@ -1,7 +1,7 @@
 <?php
 /**
 * Tests for Slovak Rebublic Business Directory Parser - ORSR.sk - Obchodny register SR
-* Tests passing PHP 5.6 - 8.2.3 as of 06/2023
+* Tests passing PHP 5.6 - 8.4 as of 08/2025
 */
 
 use lubosdz\parserOrsr\ConnectorOrsr;
@@ -118,6 +118,12 @@ class ConnectorOrsrTest extends TestCase
 		// since 27/05/2025 (1.1.3) - multiple ICO - vrati platny zaznam "Duslo, a.s." namiesto predosleho subjektu "AVION Invest, a.s."
 		$data = $connector->getDetailByICO('35 826 487'); // ICO = 8 digits, autostrip spaces
 		$this->assertSame('Duslo, a.s.', $data['obchodne_meno'], 'Name must be "Duslo, a.s.", not "' . $data['obchodne_meno'] . '"');
+		$connector->resetOutput();
+
+		// since 18/08/2025 (1.1.4) - multiple ICO - vrati platny zaznam "Odvoz a likvidácia odpadu .." namiesto predosleho subjektu "AVION Invest, a.s."
+		$data = $connector->getDetailByICO('00681300');
+		//$this->assertTrue(false !== stripos($data['obchodne_meno'], 'v skratke: OLO a.s.'), 'Found invalid subject: '.$data['obchodne_meno']);
+		$this->assertSame('Odvoz a likvidácia odpadu a.s. v skratke: OLO a.s.', $data['obchodne_meno']);
 		$connector->resetOutput();
 	}
 
