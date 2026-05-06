@@ -3,8 +3,8 @@
  * Parser pre vypis z obchodneho registra SR
  * Lookup service for Slovak commercial register (www.orsr.sk)
  *
- * Version 1.1.4 (released 18.08.2025)
- * (c) 2015 - 2025 lubosdz@gmail.com
+ * Version 1.1.5 (released 06.05.2026)
+ * (c) 2015 - 2026 lubosdz@gmail.com
  *
  * ------------------------------------------------------------------
  * Disclaimer / Prehlásenie:
@@ -66,7 +66,7 @@ namespace lubosdz\parserOrsr;
  */
 class ConnectorOrsr
 {
-    const API_VERSION = '1.1.4';
+    const API_VERSION = '1.1.5';
 
     /** @var string Endpoint URL */
     const URL_BASE = 'https://www.orsr.sk';
@@ -750,6 +750,7 @@ class ConnectorOrsr
             'Právny dôvod zrušenia'         => 'extract_pravnyDovodZrusenia',
             'Právna forma'                  => 'extract_pravnaForma',
             'Predmet činnosti'              => 'extract_predmetCinnost',
+            'Predmet podnikania' 			=> 'extract_predmetCinnost', // since cca 04/2026
             'Spoločníci'                    => 'extract_spolocnici',
             'Výška vkladu'                  => 'extract_vyskaVkladu',
             'Štatutárny orgán'              => 'extract_statutarnyOrgan',
@@ -984,10 +985,17 @@ class ConnectorOrsr
         foreach ($out as $id => $meno) {
             $meno = str_replace(array_keys($map), $map, $meno);
             $meno = trim($meno);
-            if (false !== mb_stripos($meno, 'v likvidácii', 0, 'utf-8') || false !== mb_stripos($meno, 'v konkurze', 0, 'utf-8')) {
+
+            // mnoho variacii pre zapis o likvidacii/konkurze, napr. Firma "v konkurze", Firma vyhlásenie konkurzu, s.r.o., Firma v dodatočnej likvidácii ..
+            $tmp = trim($meno, ' ",/;()-');
+            if (preg_match('/( likvidácii| likv.|[ likvdác-]{8,})$/ui', $tmp) ||
+                preg_match('/( konkurz| konkurze)$/ui', $tmp) ||
+                preg_match('/(konkurzné konanie|vyhlásený konkurz|vyhlásenie konkurzu)/ui', $tmp)
+            ) {
                 $likvidacia = 1; // change since 1.0.7 - we return 1 instead of "ano"
                 $outValid = $meno;
             }
+
             $out[$id] = $meno;
         }
 

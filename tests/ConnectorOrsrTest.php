@@ -122,8 +122,13 @@ class ConnectorOrsrTest extends TestCase
 
 		// since 18/08/2025 (1.1.4) - multiple ICO - vrati platny zaznam "Odvoz a likvidácia odpadu .." namiesto predosleho subjektu "AVION Invest, a.s."
 		$data = $connector->getDetailByICO('00681300');
-		//$this->assertTrue(false !== stripos($data['obchodne_meno'], 'v skratke: OLO a.s.'), 'Found invalid subject: '.$data['obchodne_meno']);
+		$this->assertTrue(!empty($data['predmet_cinnosti'][0]) && !empty($data['statutarny_organ']['predstavenstvo'][0]['name']));
 		$this->assertSame('Odvoz a likvidácia odpadu a.s. v skratke: OLO a.s.', $data['obchodne_meno']);
+		$connector->resetOutput();
+
+		// since 6/5/2026 (1.1.5) - detect section "Predmet podnikania"
+		$data = $connector->getDetailByICO('57 511 403');
+		$this->assertTrue(!empty($data['predmet_cinnosti'][0]) && !empty($data['statutarny_organ']['konateľ'][0]['vznik_funkcie']));
 		$connector->resetOutput();
 	}
 

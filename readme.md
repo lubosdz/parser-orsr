@@ -256,6 +256,11 @@ $("#company_ico").on("keyup", function(){
 Changelog
 =========
 
+1.1.5 - 06.05.2026
+------------------
+* UPD - parse either section "Predmet činnosti" or "Predmet podnikania" (latter one introduced recently)
+* UPD - improved detection of company in bankruptcy (v likvidácii)
+
 1.1.4 - 18.08.2025
 ------------------
 * ENH - properly detect valid item - may not contain "Deň výmazu:" (@romanmatyus)
